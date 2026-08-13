@@ -1,0 +1,30 @@
+# Build output
+[Bb]in/
+[Oo]bj/
+.vs/
+TestResults/
+artifacts/
+release/*.zip
+release/SHA256SUMS.txt
+
+# IDE and user-local files
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# Local credentials and hardware test configuration
+.env
+.env.*
+!.env.example
+secrets.json
+*.secrets.json
+hardware-smoke.local.json
+.docx-review/
+.probe-results/
+
+# Vendor-provided documentation retained locally; redistribution rights are not granted
+resources/*.docx
+
+# Downloaded reference repositories
+reference-busy-shiftlight/

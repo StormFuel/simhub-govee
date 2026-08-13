@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net48</TargetFramework>
+    <RootNamespace>SimHub.Govee.Probe.Tests</RootNamespace>
+    <AssemblyName>SimHub.Govee.Probe.Tests</AssemblyName>
+    <LangVersion>7.3</LangVersion>
+    <Nullable>disable</Nullable>
+    <Deterministic>true</Deterministic>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="System.Web.Extensions" />
+    <Compile Include="..\..\tools\SimHub.Govee.Probe\ProbeOptions.cs" Link="ProbeOptions.cs" />
+    <Compile Include="..\..\tools\SimHub.Govee.Probe\CredentialReader.cs" Link="CredentialReader.cs" />
+    <Compile Include="..\..\tools\SimHub.Govee.Probe\GoveeApiClient.cs" Link="GoveeApiClient.cs" />
+    <Compile Include="..\..\tools\SimHub.Govee.Probe\GoveeApiLocator.cs" Link="GoveeApiLocator.cs" />
+  </ItemGroup>
+</Project>

@@ -1,0 +1,29 @@
+<Project Sdk="Microsoft.NET.Sdk.WindowsDesktop">
+  <PropertyGroup>
+    <TargetFramework>net48</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <AssemblyName>SimHub.Govee</AssemblyName>
+    <Version>0.1.0</Version>
+    <RootNamespace>SimHub.Govee</RootNamespace>
+    <LangVersion>latest</LangVersion>
+    <Nullable>disable</Nullable>
+    <Platforms>AnyCPU</Platforms>
+    <Deterministic>true</Deterministic>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <SimHubInstallPath Condition="'$(SIMHUB_INSTALL_PATH)' != ''">$(SIMHUB_INSTALL_PATH)</SimHubInstallPath>
+    <SimHubInstallPath Condition="'$(SimHubInstallPath)' == ''">C:\Program Files (x86)\SimHub\</SimHubInstallPath>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="SimHub.Plugins"><HintPath>$(SimHubInstallPath)SimHub.Plugins.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="GameReaderCommon"><HintPath>$(SimHubInstallPath)GameReaderCommon.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="SimHub.Logging"><HintPath>$(SimHubInstallPath)SimHub.Logging.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="log4net"><HintPath>$(SimHubInstallPath)log4net.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="System.Security" />
+    <Reference Include="System.Net.Http" />
+    <Reference Include="System.Web.Extensions" />
+    <Reference Include="System.Web" />
+  </ItemGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="Assets\SimHubGoveeIcon.png" />
+  </ItemGroup>
+</Project>

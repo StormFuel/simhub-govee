@@ -1,0 +1,63 @@
+<UserControl x:Class="SimHub.Govee.SettingsView" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:local="clr-namespace:SimHub.Govee">
+  <ScrollViewer VerticalScrollBarVisibility="Auto">
+    <StackPanel Margin="22" MaxWidth="1050" HorizontalAlignment="Left">
+      <TextBlock Text="SimHub Govee" FontSize="26" FontWeight="SemiBold"/>
+      <TextBlock Text="Hybrid control for compatible Govee lights: cloud discovery and state, fast local commands, and automatic cloud fallback." Margin="0,5,0,18" TextWrapping="Wrap"/>
+
+      <GroupBox Header="1. Govee Developer API" Padding="12" Margin="0,0,0,12">
+        <StackPanel>
+          <TextBlock Text="Paste your own Developer API key. It is encrypted for your Windows account and is never shown again." TextWrapping="Wrap"/>
+          <DockPanel Margin="0,8,0,0">
+            <PasswordBox x:Name="ApiKeyBox" MinWidth="360" Margin="0,0,8,0"/>
+            <Button Content="Save key" Click="SaveKey_Click" Padding="14,5" Margin="0,0,8,0"/>
+            <Button Content="Remove key" Click="RemoveKey_Click" Padding="14,5"/>
+          </DockPanel>
+          <TextBlock x:Name="KeyStatusText" Margin="0,7,0,0"/>
+        </StackPanel>
+      </GroupBox>
+
+      <GroupBox Header="2. Devices" Padding="12" Margin="0,0,0,12">
+        <StackPanel>
+          <DockPanel Margin="0,0,0,8">
+            <Button Content="Refresh from Govee" Click="Refresh_Click" Padding="14,5" Margin="0,0,8,0"/>
+            <CheckBox x:Name="HideLogicalCheck" Content="Hide DreamView logical devices" VerticalAlignment="Center" Checked="SettingChanged" Unchecked="SettingChanged"/>
+          </DockPanel>
+          <DataGrid x:Name="DevicesGrid" AutoGenerateColumns="False" CanUserAddRows="False" MinHeight="160" HeadersVisibility="Column" SelectionMode="Single">
+            <DataGrid.Columns>
+              <DataGridCheckBoxColumn Header="Use" Binding="{Binding Selected}" Width="45"/>
+              <DataGridTextColumn Header="Name" Binding="{Binding Name}" Width="2*" IsReadOnly="True"/>
+              <DataGridTextColumn Header="Model" Binding="{Binding Sku}" Width="90" IsReadOnly="True"/>
+              <DataGridTextColumn Header="Reserved IPv4 address" Binding="{Binding IpAddress}" Width="160"/>
+              <DataGridComboBoxColumn Header="Transport" SelectedItemBinding="{Binding Transport}" ItemsSource="{x:Static local:SettingsView.TransportModes}" Width="120"/>
+            </DataGrid.Columns>
+          </DataGrid>
+          <TextBlock Text="For Hybrid/Local-only mode, enable LAN Control in Govee Home and enter a DHCP-reserved IP. Across VLANs, permit outbound UDP 4003." Margin="0,8,0,0" TextWrapping="Wrap"/>
+          <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
+            <Button Content="Save device choices" Click="Save_Click" Padding="14,5" Margin="0,0,8,0"/>
+            <Button Content="Test ON + verify" Click="TestOn_Click" Padding="14,5" Margin="0,0,8,0"/>
+            <Button Content="Test OFF + verify" Click="TestOff_Click" Padding="14,5"/>
+          </StackPanel>
+        </StackPanel>
+      </GroupBox>
+
+      <GroupBox Header="3. Behavior" Padding="12" Margin="0,0,0,12">
+        <StackPanel>
+          <WrapPanel>
+            <TextBlock Text="At SimHub start:" VerticalAlignment="Center" Margin="0,0,8,0"/>
+            <ComboBox x:Name="StartupPolicyBox" Width="170" SelectionChanged="SettingChanged"/>
+            <CheckBox x:Name="StartupOnCheck" Content="Configured state is ON" Margin="16,2,0,0" Checked="SettingChanged" Unchecked="SettingChanged"/>
+          </WrapPanel>
+          <WrapPanel Margin="0,10,0,0">
+            <TextBlock Text="At clean exit:" VerticalAlignment="Center" Margin="0,0,8,0"/>
+            <ComboBox x:Name="ExitPolicyBox" Width="170" SelectionChanged="SettingChanged"/>
+            <CheckBox x:Name="ExitOnCheck" Content="Configured state is ON" Margin="16,2,0,0" Checked="SettingChanged" Unchecked="SettingChanged"/>
+          </WrapPanel>
+          <CheckBox x:Name="FallbackCheck" Content="Automatically fall back to cloud control" Margin="0,10,0,0" Checked="SettingChanged" Unchecked="SettingChanged"/>
+          <TextBlock Text="Restore Previous restores known power, brightness, and RGB values captured through cloud at startup. Active scenes and modes cannot be restored exactly." Margin="0,8,0,0" TextWrapping="Wrap"/>
+        </StackPanel>
+      </GroupBox>
+
+      <GroupBox Header="Status" Padding="12"><TextBlock x:Name="StatusText" TextWrapping="Wrap"/></GroupBox>
+    </StackPanel>
+  </ScrollViewer>
+</UserControl>
