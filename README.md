@@ -4,11 +4,15 @@
   <img src="design/simhub-govee.png" alt="Govee Controller Plugin for SimHub logo" width="180">
 </p>
 
-Govee Controller Plugin for SimHub is a Windows plugin for controlling compatible Govee lights from SimHub. It appears as **Govee Controller** in SimHub's menu. The first verified device is the **H6046 RGBIC TV Light Bars**, but devices are discovered from Govee capability metadata rather than hard-coded by model.
+Govee Controller Plugin for SimHub is a Windows plugin for controlling compatible Govee room lights from SimHub. It appears as **Govee Controller** in SimHub's menu. The first verified device is the **H6046 RGBIC TV Light Bars**, but devices are discovered from Govee capability metadata rather than hard-coded by model.
+
+> **This is not an ambient-lighting or screen-color-matching plugin.** SimHub already has a separate plugin for Govee ambient lighting. Govee Controller is intended for lights that are not supported by that ambient-lighting integration, as well as users who want direct control over the lighting in their room.
+
+The goal is to put your room lights into a chosen default state when SimHub starts, automatically apply different settings when specific games start, restore their previous state when gameplay ends, and expose lighting actions to SimHub. Those actions can be assigned to button boxes, Dash Studio dashboard buttons, or other SimHub controls for manual power and color changes.
 
 The included plugin icon is original project artwork and does not use Govee's logo or wordmark.
 
-Version 0.2 adds reusable color/brightness presets, default and per-game profiles, targeted lights, pre-game restoration, and named SimHub actions for Dash Studio or controller buttons. Managed On, Off, Toggle, and per-color actions are created automatically. It retains device discovery, verified power tests, configurable startup/exit behavior, encrypted credentials, and hybrid local/cloud control.
+Version 0.2 adds reusable color/brightness presets, default and per-game profiles, targeted lights, pre-game restoration, and named SimHub actions for Dash Studio dashboards or button boxes. Managed On, Off, Toggle, and per-color actions are created automatically. It retains device discovery, verified power tests, configurable startup/exit behavior, encrypted credentials, and hybrid local/cloud control.
 
 ## Screenshots
 
