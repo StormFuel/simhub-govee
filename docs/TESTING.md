@@ -6,7 +6,7 @@ Automated tests are deterministic and never contact Govee or send UDP packets. R
 .\scripts\build.ps1
 ```
 
-The suite covers settings defaults and normalization, RGB validation, DPAPI encryption round-tripping, current cloud response/request shapes, device merging, local command routing, and cloud fallback.
+The suite covers settings migration/defaults, RGB/HEX validation, DPAPI encryption, cloud contracts, device merging, local/cloud routing, stable SimHub game-code resolution, process-detection activation, profile resolution, target selection, managed-action reconciliation and stable keys, tracked toggle decisions, transition debouncing, desired-state ordering, snapshots, and Local-only restoration fallback.
 
 Hardware tests are always opt-in. The settings panel's **Test ON + verify** and **Test OFF + verify** buttons name the selected device count, ask for confirmation, send the command, and query cloud state until it is observed. These buttons do not automatically restore the old state; use the opposite test button when finished. The research-only guarded restore script remains available at `scripts\interactive-govee-hybrid-power-test.ps1`.
 

@@ -32,13 +32,36 @@ namespace SimHub.Govee
             return merged;
         }
 
-        public Task<DeviceState> GetStateAsync(DeviceSettings device, CancellationToken token) => _cloud.GetStateAsync(RequireKey(), device, token);
+        public async Task<DeviceState> GetStateAsync(DeviceSettings device, CancellationToken token)
+        {
+            var state = await _cloud.GetStateAsync(RequireKey(), device, token).ConfigureAwait(false);
+            if (state != null && state.PowerOn.HasValue) device.LastKnownPower = state.PowerOn;
+            return state;
+        }
         public async Task CaptureInitialStatesAsync(IEnumerable<DeviceSettings> devices, CancellationToken token)
         {
             foreach (var d in devices.Where(x => x.Selected && !string.IsNullOrWhiteSpace(x.DeviceId))) try { _initial[d.DeviceId] = await GetStateAsync(d, token).ConfigureAwait(false); } catch { }
         }
 
-        public Task<OperationResult> SetPowerAsync(DeviceSettings d, bool on, bool verify, bool fallback, CancellationToken token) => ExecuteAsync(d, fallback, verify, () => _lan.SendPower(d.IpAddress, on), () => _cloud.SetPowerAsync(RequireKey(), d, on, token), s => s.PowerOn == on, "power", token);
+        public async Task<IDictionary<string, DeviceState>> CaptureStatesAsync(IEnumerable<DeviceSettings> devices, CancellationToken token)
+        {
+            var result = new Dictionary<string, DeviceState>(StringComparer.OrdinalIgnoreCase);
+            foreach (var d in devices.Where(x => !string.IsNullOrWhiteSpace(x.DeviceId) && x.Transport != TransportMode.LocalOnly))
+                try { result[d.DeviceId] = await GetStateAsync(d, token).ConfigureAwait(false); } catch { }
+            return result;
+        }
+
+        public async Task<OperationResult> RestoreStateAsync(DeviceSettings device, DeviceState state, bool fallback, CancellationToken token)
+        {
+            return await RestoreAsync(device, state, fallback, token).ConfigureAwait(false);
+        }
+
+        public async Task<OperationResult> SetPowerAsync(DeviceSettings d, bool on, bool verify, bool fallback, CancellationToken token)
+        {
+            var result = await ExecuteAsync(d, fallback, verify, () => _lan.SendPower(d.IpAddress, on), () => _cloud.SetPowerAsync(RequireKey(), d, on, token), s => s.PowerOn == on, "power", token).ConfigureAwait(false);
+            if (result.Success) d.LastKnownPower = on;
+            return result;
+        }
         public Task<OperationResult> SetBrightnessAsync(DeviceSettings d, int value, bool fallback, CancellationToken token) => ExecuteAsync(d, fallback, false, () => _lan.SendBrightness(d.IpAddress, value), () => _cloud.SetBrightnessAsync(RequireKey(), d, value, token), null, "brightness", token);
         public Task<OperationResult> SetColorAsync(DeviceSettings d, int r, int g, int b, bool fallback, CancellationToken token) => ExecuteAsync(d, fallback, false, () => _lan.SendColor(d.IpAddress, r, g, b), () => _cloud.SetColorAsync(RequireKey(), d, r, g, b, token), null, "color", token);
 
@@ -103,12 +126,14 @@ namespace SimHub.Govee
                 else await SetPowerAsync(d, settings.ExitPolicy == ExitPolicy.ConfiguredState && settings.ExitPowerOn, false, settings.CloudFallback, token).ConfigureAwait(false);
             }
         }
-        private async Task RestoreAsync(DeviceSettings d, DeviceState s, bool fallback, CancellationToken token)
+        private async Task<OperationResult> RestoreAsync(DeviceSettings d, DeviceState s, bool fallback, CancellationToken token)
         {
-            if (s.Brightness.HasValue) await SetBrightnessAsync(d, s.Brightness.Value, fallback, token).ConfigureAwait(false);
-            if (s.Rgb.HasValue) { int rgb = s.Rgb.Value; await SetColorAsync(d, rgb >> 16 & 255, rgb >> 8 & 255, rgb & 255, fallback, token).ConfigureAwait(false); }
+            OperationResult result = OperationResult.Ok("No known fields required restoration.");
+            if (s.Brightness.HasValue) { result = await SetBrightnessAsync(d, s.Brightness.Value, fallback, token).ConfigureAwait(false); if (!result.Success) return result; }
+            if (s.Rgb.HasValue) { int rgb = s.Rgb.Value; result = await SetColorAsync(d, rgb >> 16 & 255, rgb >> 8 & 255, rgb & 255, fallback, token).ConfigureAwait(false); if (!result.Success) return result; }
             // Power is deliberately last: some lights may wake when brightness/color is changed.
-            if (s.PowerOn.HasValue) await SetPowerAsync(d, s.PowerOn.Value, false, fallback, token).ConfigureAwait(false);
+            if (s.PowerOn.HasValue) result = await SetPowerAsync(d, s.PowerOn.Value, false, fallback, token).ConfigureAwait(false);
+            return result.Success ? OperationResult.Ok("Previous known state restored.", result.UsedCloudFallback) : result;
         }
         private string RequireKey() { string key = _getApiKey(); if (string.IsNullOrWhiteSpace(key)) throw new GoveeCloudException("Save a Govee Developer API key first."); return key; }
         private static string Sanitize(string message) => string.IsNullOrWhiteSpace(message) ? "Govee operation failed." : message.Replace("\r", " ").Replace("\n", " ");

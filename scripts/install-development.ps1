@@ -7,4 +7,4 @@ if (-not (Test-Path -LiteralPath $source)) { throw 'Release DLL not found. Run s
 if (-not (Test-Path -LiteralPath (Join-Path $SimHubPath 'SimHubWPF.exe'))) { throw "SimHub was not found at $SimHubPath." }
 if (Get-Process SimHubWPF -ErrorAction SilentlyContinue) { throw 'Close SimHub before installing the development DLL.' }
 Copy-Item -LiteralPath $source -Destination (Join-Path $SimHubPath 'SimHub.Govee.dll') -Force
-Write-Host 'Installed SimHub.Govee.dll. Start SimHub and enable SimHub Govee under Settings > Plugins.'
+Write-Host 'Installed SimHub.Govee.dll. Start SimHub and enable Govee Controller Plugin for SimHub under Settings > Plugins.'

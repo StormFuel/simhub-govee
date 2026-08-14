@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Net;
 using System.Net.Http;
 using System.Reflection;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -14,7 +15,7 @@ internal static class Program
     {
         try
         {
-            SettingsTests(); CredentialTests(); EmbeddedAssetTests(); LanValidationTests(); await CloudParsingTests(); await CloudErrorTests(); await ControllerTests();
+            SettingsTests(); AutomationPolicyTests(); ActionRegistrationTests(); ManagedActionTests(); GameCatalogTests(); GameRuntimeIdentityTests(); TransitionTests(); CredentialTests(); EmbeddedAssetTests(); LanValidationTests(); await CloudParsingTests(); await CloudErrorTests(); await ControllerTests(); await DispatcherTests(); await GameSessionTests();
             Console.WriteLine("PASS: " + _assertions + " assertions"); return 0;
         }
         catch (Exception ex) { Console.Error.WriteLine("FAIL: " + ex); return 1; }
@@ -26,6 +27,73 @@ internal static class Program
         var d = new DeviceSettings { Name = "Bars", Sku = "H6046" }; Equal("Bars (H6046)", d.DisplayName, "display name");
         True(new DeviceSettings { Sku = "DreamViewScenic" }.IsLogical, "logical device detection");
         Equal(ExitPolicy.Off, new PluginSettings().ExitPolicy, "safe exit default"); True(new PluginSettings().CloudFallback, "fallback default");
+        Equal(4, s.SchemaVersion, "old settings migrate to v4"); True(s.DefaultGameProfile != null, "default profile migrated"); Equal(ProfileBehavior.LeaveUnchanged, s.DefaultGameProfile.Behavior, "default profile is safe");
+        Equal("#AABBCC", SettingsValidator.NormalizeHex("#aabbcc"), "hex normalized"); Equal(0xAABBCC, SettingsValidator.HexToRgb("#AABBCC"), "hex converted"); Equal("RaceRed_-1", SettingsValidator.NormalizeActionKey(" Race Red!_ -1"), "action key sanitized");
+        var legacy = new PluginSettings { SchemaVersion = 2 };
+        var legacyPreset = new LightPreset { Id = "legacy-red", Name = "Red", HexColor = "#FF0000" }; legacy.Presets.Add(legacyPreset);
+        legacy.GameProfiles.Add(new GameProfile { GameCode = "AssettoCorsa", Behavior = ProfileBehavior.PowerOn, PresetId = legacyPreset.Id });
+        legacy.DefaultGameProfile.Behavior = ProfileBehavior.PowerOn; legacy.DefaultGameProfile.PresetId = legacyPreset.Id;
+        SettingsValidator.Normalize(legacy);
+        Equal(ProfileBehavior.ApplyPreset, legacy.GameProfiles[0].Behavior, "v2 game profile with selected preset migrates to Apply Preset");
+        Equal(ProfileBehavior.ApplyPreset, legacy.DefaultGameProfile.Behavior, "v2 default profile with selected preset migrates to Apply Preset");
+        legacy.EncryptedApiKey = null; legacy.RefreshStateBeforeAction = true; SettingsValidator.Normalize(legacy); True(!legacy.RefreshStateBeforeAction, "automatic state refresh is disabled without a saved key");
+    }
+    private static void AutomationPolicyTests()
+    {
+        var s = new PluginSettings(); var d1 = Device(); var d2 = new DeviceSettings { DeviceId = "id2", Selected = true }; d1.Selected = true; s.Devices.Add(d1); s.Devices.Add(d2);
+        var preset = new LightPreset { Id = "red", HexColor = "#FF0011", Brightness = 42, TurnOn = true }; s.Presets.Add(preset);
+        var profile = new GameProfile { GameCode = "AssettoCorsa", Behavior = ProfileBehavior.ApplyPreset, PresetId = "red" }; s.GameProfiles.Add(profile);
+        Equal(profile, AutomationPolicy.ResolveProfile(s, "assettocorsa"), "custom profile case insensitive"); Equal(s.DefaultGameProfile, AutomationPolicy.ResolveProfile(s, "unknown"), "default profile fallback");
+        var state = AutomationPolicy.StateForProfile(s, profile); Equal(true, state.PowerOn, "preset turns on"); Equal(42, state.Brightness, "preset brightness"); Equal(0xFF0011, state.Rgb, "preset color");
+        profile.Behavior = ProfileBehavior.PowerOn; state = AutomationPolicy.StateForProfile(s, profile); Equal(true, state.PowerOn, "power profile on"); True(!state.Rgb.HasValue && !state.Brightness.HasValue, "power on preserves color and brightness");
+        preset.TurnOn = false; state = AutomationPolicy.StateForPreset(s, preset.Id, "managed", true); Equal(true, state.PowerOn, "managed color action always turns lights on"); preset.TurnOn = true;
+        Equal(2, AutomationPolicy.ResolveTargets(s, null).Count, "empty target means all selected"); Equal("id2", AutomationPolicy.ResolveTargets(s, new[] { "id2" })[0].DeviceId, "specific target selected");
+        var local = new DeviceSettings { DeviceId = "", IpAddress = "192.0.2.9", Selected = true }; s.Devices.Add(local); Equal("ip:192.0.2.9", local.TargetId, "local-only target identity"); Equal(local, AutomationPolicy.ResolveTargets(s, new[] { "ip:192.0.2.9" })[0], "local-only target resolved");
+        d1.LastKnownPower = true; d2.LastKnownPower = true; Equal(false, AutomationPolicy.ToggleShouldTurnOn(new[] { d1, d2 }), "toggle turns all-off when every target is on");
+        d2.LastKnownPower = false; Equal(true, AutomationPolicy.ToggleShouldTurnOn(new[] { d1, d2 }), "toggle turns all-on for mixed state");
+        d2.LastKnownPower = null; Equal(true, AutomationPolicy.ToggleShouldTurnOn(new[] { d1, d2 }), "toggle treats unknown state as needing on");
+    }
+    private static void TransitionTests()
+    {
+        var detector = new GameTransitionDetector(TimeSpan.FromSeconds(2)); var t = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+        Equal(GameTransitionType.Started, detector.Observe(true, "GameA", t).Type, "game start detected"); Equal(GameTransitionType.None, detector.Observe(true, "GameA", t.AddSeconds(1)).Type, "steady game ignored");
+        Equal(GameTransitionType.Switched, detector.Observe(true, "GameB", t.AddSeconds(2)).Type, "game switch detected"); Equal(GameTransitionType.None, detector.Observe(false, null, t.AddSeconds(3)).Type, "stop begins debounce"); Equal(GameTransitionType.None, detector.Observe(true, "GameB", t.AddSeconds(4)).Type, "brief telemetry loss ignored");
+        detector.Observe(false, null, t.AddSeconds(5)); Equal(GameTransitionType.None, detector.Observe(false, null, t.AddSeconds(6)).Type, "stop still debounced"); Equal(GameTransitionType.Stopped, detector.Observe(false, null, t.AddSeconds(7)).Type, "game stop detected");
+    }
+    private static void GameRuntimeIdentityTests()
+    {
+        Equal("AssettoCorsa", GameRuntimeIdentity.Resolve("AssettoCorsa", "Assetto Corsa", "Assetto Corsa"), "stable Assetto Corsa code preferred");
+        Equal("FH6", GameRuntimeIdentity.Resolve(" FH6 ", "Forza Horizon 6", "Forza Horizon 6"), "stable FH6 code preferred and trimmed");
+        Equal("ManagerName", GameRuntimeIdentity.Resolve(null, " ManagerName ", "DataName"), "manager name fallback");
+        Equal("DataName", GameRuntimeIdentity.Resolve(null, null, " DataName "), "data name fallback");
+        True(GameRuntimeIdentity.IsDetected(false, true), "process detection activates a profile before telemetry");
+        True(GameRuntimeIdentity.IsDetected(true, false), "live telemetry activates a profile");
+        True(!GameRuntimeIdentity.IsDetected(false, false), "inactive game remains inactive");
+    }
+    private static void ActionRegistrationTests()
+    {
+        var actions = new[] { new ManualActionDefinition { ActionKey = "RaceRed" }, new ManualActionDefinition { ActionKey = "racered" }, new ManualActionDefinition { ActionKey = "" }, null, new ManualActionDefinition { ActionKey = "PowerOff" } };
+        var plan = ActionRegistrationPlanner.Build(actions); Equal(2, plan.Count, "duplicate/invalid actions excluded"); Equal("SimHubGovee.RaceRed", plan[0].RegisteredName, "stable action prefix"); Equal("SimHubGovee.PowerOff", plan[1].RegisteredName, "second stable action");
+    }
+    private static void ManagedActionTests()
+    {
+        var settings = new PluginSettings(); var preset = new LightPreset { Id = "red-id", Name = "Race Red", HexColor = "#FF0000" }; settings.Presets.Add(preset);
+        ManagedActionPlanner.Reconcile(settings);
+        Equal(4, settings.ManualActions.Count, "three default actions and one preset action generated");
+        True(settings.ManualActions.Any(a => a.RegisteredName == "SimHubGovee.LightsOn" && a.Type == ManualActionType.PowerOn && a.IsManaged), "managed LightsOn generated");
+        True(settings.ManualActions.Any(a => a.RegisteredName == "SimHubGovee.LightsOff" && a.Type == ManualActionType.PowerOff && a.IsManaged), "managed LightsOff generated");
+        True(settings.ManualActions.Any(a => a.RegisteredName == "SimHubGovee.LightsToggle" && a.Type == ManualActionType.TogglePower && a.IsManaged), "managed LightsToggle generated");
+        var color = settings.ManualActions.Single(a => a.PresetId == preset.Id); Equal("SimHubGovee.Color_RaceRed", color.RegisteredName, "managed color key generated"); string stableKey = color.ActionKey;
+        preset.Name = "Renamed Red"; ManagedActionPlanner.Reconcile(settings); color = settings.ManualActions.Single(a => a.PresetId == preset.Id); Equal(stableKey, color.ActionKey, "preset rename preserves action key"); Equal("Color: Renamed Red", color.DisplayName, "preset rename updates action label");
+        settings.Presets.Clear(); ManagedActionPlanner.Reconcile(settings); True(!settings.ManualActions.Any(a => a.Type == ManualActionType.SetColor && a.IsManaged), "deleting preset removes generated action");
+        settings = new PluginSettings(); settings.ManualActions.Add(new ManualActionDefinition { ActionKey = "Color_Blue" }); settings.Presets.Add(new LightPreset { Id = "blue-id", Name = "Blue" }); ManagedActionPlanner.Reconcile(settings);
+        True(settings.ManualActions.Any(a => a.ActionKey == "Color_Blue_2" && a.IsManaged), "generated color key avoids custom action collision");
+    }
+    private static void GameCatalogTests()
+    {
+        var games = new[] { new GameCatalogItem { Code = "AC", Name = "Assetto Corsa" }, new GameCatalogItem { Code = "FH6", Name = "Forza Horizon 6", Hidden = true }, new GameCatalogItem { Code = "ac", Name = "Duplicate" }, null };
+        var visible = SimHubGameCatalog.Filter(games); Equal(1, visible.Count, "hidden and duplicate games filtered"); Equal("Assetto Corsa (AC)", visible[0].DisplayName, "friendly game label includes stable code");
+        var included = SimHubGameCatalog.Filter(games, new[] { "fh6" }); Equal(2, included.Count, "configured hidden game retained"); Equal("FH6", included.Single(x => x.Code == "FH6").Code, "stable game code retained");
     }
     private static void CredentialTests()
     {
@@ -78,6 +146,7 @@ internal static class Program
     {
         var cloud = new FakeCloud(); var lan = new FakeLan(); var c = new GoveeController(lan, cloud, () => "key");
         var d = Device(); var result = await c.SetPowerAsync(d, true, false, true, CancellationToken.None); True(result.Success, "local succeeds"); Equal(1, lan.PowerCalls, "local called"); Equal(0, cloud.PowerCalls, "cloud unused");
+        Equal(true, d.LastKnownPower, "successful power command updates tracked state");
         lan.Throw = true; result = await c.SetPowerAsync(d, false, false, true, CancellationToken.None); True(result.Success && result.UsedCloudFallback, "fallback succeeds"); Equal(1, cloud.PowerCalls, "cloud fallback called");
         d.Transport = TransportMode.LocalOnly; result = await c.SetPowerAsync(d, false, false, false, CancellationToken.None); True(!result.Success, "local-only failure returned");
         var settings = new PluginSettings { HideLogicalDevices = true, Devices = new List<DeviceSettings> { new DeviceSettings { DeviceId = "id", Selected = true, IpAddress = "1.2.3.4", Transport = TransportMode.Hybrid } } };
@@ -89,6 +158,28 @@ internal static class Program
         cloud.State = new DeviceState { Online = true, PowerOn = false, Brightness = 30, Rgb = 0x112233 }; lan.Commands.Clear();
         await c.CaptureInitialStatesAsync(found, CancellationToken.None); settings.ExitPolicy = ExitPolicy.RestorePrevious; await c.ApplyExitAsync(settings, CancellationToken.None);
         Equal("brightness,color,power:False", string.Join(",", lan.Commands), "restore applies power last");
+        Equal(false, found[0].LastKnownPower, "cloud state and restore update tracked power");
+    }
+    private static async Task DispatcherTests()
+    {
+        var cloud = new FakeCloud(); var lan = new FakeLan(); var controller = new GoveeController(lan, cloud, () => "key"); var dispatcher = new LightStateDispatcher(controller); var d = Device();
+        var result = await dispatcher.ApplyAsync(new[] { d }, new DesiredLightState { Brightness = 20, Rgb = 0x010203, PowerOn = true }, true, CancellationToken.None);
+        True(result.Success, "desired state applied"); Equal("brightness,color,power:True", string.Join(",", lan.Commands), "desired state ordering");
+        var known = dispatcher.GetLastKnown(d); Equal(20, known.Brightness, "last commanded brightness"); Equal(0x010203, known.Rgb, "last commanded color"); Equal(true, known.PowerOn, "last commanded power");
+    }
+    private static async Task GameSessionTests()
+    {
+        var cloud = new FakeCloud { State = new DeviceState { PowerOn = false, Brightness = 10, Rgb = 0x101010 } }; var lan = new FakeLan(); var controller = new GoveeController(lan, cloud, () => "key"); var dispatcher = new LightStateDispatcher(controller); var coordinator = new GameSessionCoordinator(controller, dispatcher);
+        var d = Device(); d.Selected = true; var settings = new PluginSettings { Devices = new List<DeviceSettings> { d }, DefaultGameProfile = new GameProfile { Id = "default", Behavior = ProfileBehavior.PowerOn } };
+        await coordinator.HandleAsync(new GameTransition(GameTransitionType.Started, null, "Unknown"), settings, CancellationToken.None); Equal("power:True", string.Join(",", lan.Commands), "default game profile applied");
+        lan.Commands.Clear(); await coordinator.HandleAsync(new GameTransition(GameTransitionType.Stopped, "Unknown", null), settings, CancellationToken.None); Equal("brightness,color,power:False", string.Join(",", lan.Commands), "pre-game cloud state restored");
+        d.Transport = TransportMode.LocalOnly; d.DeviceId = ""; d.IpAddress = "192.0.2.2"; settings.DefaultGameProfile.Behavior = ProfileBehavior.PowerOn; lan.Commands.Clear();
+        await coordinator.HandleAsync(new GameTransition(GameTransitionType.Started, null, "Unknown"), settings, CancellationToken.None); await coordinator.HandleAsync(new GameTransition(GameTransitionType.Stopped, "Unknown", null), settings, CancellationToken.None);
+        Equal("power:True,power:True", string.Join(",", lan.Commands), "local-only falls back to global configured default");
+        settings.StartupPolicy = StartupPolicy.LeaveUnchanged; settings.StartupPowerOn = false; settings.DefaultGameProfile.Behavior = ProfileBehavior.LeaveUnchanged;
+        var freshLan = new FakeLan(); var freshController = new GoveeController(freshLan, cloud, () => "key"); var freshCoordinator = new GameSessionCoordinator(freshController, new LightStateDispatcher(freshController));
+        await freshCoordinator.HandleAsync(new GameTransition(GameTransitionType.Started, null, "Unknown"), settings, CancellationToken.None); await freshCoordinator.HandleAsync(new GameTransition(GameTransitionType.Stopped, "Unknown", null), settings, CancellationToken.None);
+        Equal("power:False", string.Join(",", freshLan.Commands), "local-only without known state uses configured global default even when startup leaves unchanged");
     }
     private static DeviceSettings Device() => new DeviceSettings { DeviceId = "id", Sku = "H6046", IpAddress = "192.0.2.1", Transport = TransportMode.Hybrid };
     private static void True(bool value, string name) { _assertions++; if (!value) throw new Exception(name); }
