@@ -1,9 +1,10 @@
 [CmdletBinding()]
-param([string]$Version = '0.1.0')
+param([string]$Version = '0.2.0')
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
 & (Join-Path $PSScriptRoot 'build.ps1') -Configuration Release
-$staging = Join-Path $root "artifacts\SimHub-Govee-$Version"
+if ($LASTEXITCODE -ne 0) { throw "Release validation failed with exit code $LASTEXITCODE." }
+$staging = Join-Path $root "artifacts\Govee-Controller-Plugin-for-SimHub-$Version"
 $zip = "$staging.zip"
 if (Test-Path $staging) { Remove-Item -LiteralPath $staging -Recurse -Force }
 if (Test-Path $zip) { Remove-Item -LiteralPath $zip -Force }

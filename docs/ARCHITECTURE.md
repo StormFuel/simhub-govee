@@ -2,7 +2,7 @@
 
 ## Goals and scope
 
-SimHub Govee controls selected Govee lights without blocking SimHub's telemetry thread. Version 0.1 focuses on setup, dependable power control, and lifecycle behavior. Telemetry effects, DreamView emulation, scenes, and advanced per-device animation are later work.
+Govee Controller Plugin for SimHub controls selected Govee lights without blocking SimHub's telemetry thread. It appears as Govee Controller in SimHub's menu. Version 0.2 adds transition-driven game profiles and manual SimHub actions while keeping high-frequency telemetry effects, DreamView emulation, scenes, and animation outside the current scope.
 
 The H6046 is the reference hardware, but discovery records model device identity, SKU, capability names, transport, and IP independently. Unsupported devices can use Cloud mode; devices proven to accept local commands can use Hybrid or Local-only.
 
@@ -15,9 +15,29 @@ GoveePlugin (SimHub IDataPlugin / IWPFSettingsV2)
   ├─ GoveeLanClient: validated fire-and-forget UDP 4003 commands
   ├─ GoveeCloudClient: discovery, state, and control REST calls
   └─ DpapiCredentialProtector: current-user encrypted key storage
+
+AutomationPolicy / GameTransitionDetector
+  ├─ versioned presets, game profiles, targets, and actions
+  ├─ debounced start/switch/stop decisions
+  └─ pure deterministic policy functions
+
+LightStateDispatcher / GameSessionCoordinator
+  ├─ one desired-state path for profiles and manual actions
+  ├─ latest-generation cancellation of obsolete queued work
+  └─ pre-game snapshot and best-effort restoration
 ```
 
-`DataUpdate` is deliberately a no-op in version 0.1. Startup work runs asynchronously. Clean-exit work is bounded to five seconds so an unreachable service cannot hang SimHub indefinitely.
+`DataUpdate` performs only game identity/process-state transition detection. A game becomes active when SimHub detects its process or reports live telemetry, whichever comes first. Profile lookup uses `SupportedGameManager.Code`, with manager/data names only as compatibility fallbacks. Network and state application run asynchronously. A two-second stop debounce ignores brief detection or telemetry gaps. Clean-exit work is bounded to five seconds so an unreachable service cannot hang SimHub indefinitely.
+
+## Profiles, presets, and actions
+
+Settings schema v4 migrates earlier settings without changing existing devices or lifecycle behavior. The migration repairs v0.2 profiles that retained a selected preset while being stored as Power On, changing that unambiguous pre-release combination to Apply Preset. The schema provides reusable presets, a safe Leave-Unchanged default game profile, custom profiles keyed case-insensitively by SimHub game code, manual action definitions, opt-in pre-action cloud refresh, and persisted last-known power per device. Empty target lists consistently mean all globally selected devices; otherwise only listed selected device IDs receive the state.
+
+Named SimHub actions are registered as `SimHubGovee.<immutable key>`. SimHub action callbacks are parameterless, so Set Color references a persistent preset rather than trying to receive arbitrary values at click time. Labels, presets, action types, and targets may be updated without changing the key. Deletion warns that external bindings will stop working.
+
+Managed-action reconciliation always provides LightsOn, LightsOff, and LightsToggle plus one color action per preset. Generated color keys remain stable across preset renames and are removed with their preset. Managed color actions inherit preset targets and force power on. Toggle turns all targets off only when every tracked target is on; mixed or unknown state turns all targets on. Successful commands, cloud reads, startup policy, profiles, and restoration update persisted power tracking. Optional pre-action refresh queries cloud state when a Developer API key is saved, then gracefully falls back to tracking if refresh fails.
+
+Command order within one desired state is brightness, RGB, then power. Power On without a preset contains only power and therefore preserves current color/brightness. Manual states remain until another manual command or lifecycle/game transition supersedes them. Clean shutdown cancels outstanding automation before applying the exit policy.
 
 ## Transport policy
 
@@ -38,9 +58,9 @@ The adapter uses `https://openapi.api.govee.com/router/api/v1`:
 
 Responses are parsed defensively and non-200 HTTP/API codes become sanitized exceptions. HTTP 401 and 429 receive actionable messages. Device identity and SKU are required for state/control. Current known state fields are online, power, brightness, RGB integer, and color temperature.
 
-Published limits observed during research were 30 device-list requests/minute/account, 30 state requests/minute/device, 12 controls/second/account, and 2 controls/second/device (120/minute/device). Version 0.1 has no frame-driven output and serializes commands, keeping normal use comfortably below these ceilings.
+Published limits observed during research were 30 device-list requests/minute/account, 30 state requests/minute/device, 12 controls/second/account, and 2 controls/second/device (120/minute/device). Version 0.2 has no frame-driven lighting output and serializes commands, keeping normal use comfortably below these ceilings.
 
-## Lifecycle state
+## Lifecycle state and game restoration
 
 Before the first startup action, cloud-capable selected devices are queried and their known state is retained in memory. Startup can apply configured power or make no change. On normal exit:
 
@@ -50,6 +70,8 @@ Before the first startup action, cloud-capable selected devices are queried and 
 - Restore Previous sends captured power, brightness, and RGB where available.
 
 Cloud state cannot reconstruct active scenes, music modes, segmented effects, or DreamView. Restore Previous therefore restores only known primitive fields and documents that limitation. Snapshots are intentionally not persisted across processes because stale state is more dangerous than an incomplete best-effort restore.
+
+The game coordinator captures the original state only on the first game start, retains it across direct game switches, and restores it when no game remains active. Hybrid/Cloud devices use cloud snapshots. Local-only devices use the dispatcher's last commanded state when one exists; otherwise the global configured startup power is applied as a visible best-effort fallback.
 
 ## Security and privacy
 

@@ -1,26 +1,27 @@
 # Product Decisions
 
-The version 0.1 decisions are complete:
+## Version 0.2 decisions
 
-- Name: **SimHub Govee**.
-- First verified hardware: H6046 RGBIC TV Light Bars, while retaining capability-based support for similar devices.
-- Discovery and state: current Govee Developer API.
-- Normal control: Hybrid by default—direct UDP 4003 to a reserved device IP, with cloud fallback. Cloud-only and Local-only remain selectable.
-- Credential storage: the user's own Developer API key, encrypted by Windows DPAPI for the current user. No shared key or Desktop API GUID ships.
-- Devices: multi-select, mirrored behavior by default, and DreamView logical entries hidden by default.
-- Startup: configured ON by default or Leave Unchanged.
-- Clean exit: OFF by default, with Leave Unchanged, configured ON/OFF, and Restore Previous alternatives.
-- Restore Previous: restore known power, brightness, and RGB captured through cloud. Exact scene/music/DreamView restoration is not claimed.
-- Version 0.1 controls: safe manual power testing. Brightness/color transport support is implemented for future UI exposure after broader-device validation.
-- Telemetry effects and advanced configuration are deferred.
+- The device table explains that an IP is optional for Cloud mode but strongly recommended with a DHCP reservation for Hybrid/local control.
+- Reusable presets contain color, optional brightness, automatic power-on, and optional target lights.
+- A Default Game Profile handles games without a custom profile and initially leaves lights unchanged.
+- Custom profiles use SimHub's detected game code and may target all selected or specific lights.
+- Power On without a preset preserves the current color and brightness.
+- The original pre-game state is retained across direct game switches and restored after the final game stops.
+- Hybrid/Cloud devices restore captured cloud state. Local-only devices restore the last plugin-commanded state, or the configured global default if no known state exists.
+- The UI explains why Local-only restoration is best effort and why active scenes, music modes, segmented effects, and DreamView cannot be restored exactly.
+- Managed SimHub actions preload Power On, Power Off, and Toggle, while each reusable preset automatically owns a managed Set Color action that forces power on.
+- Managed color actions inherit preset targets; custom actions may target all selected lights or specific lights.
+- Registered action keys are immutable. Preset renames update their managed action labels without changing keys, and preset deletion warns before removing the paired action.
+- Toggle normally uses persisted plugin-tracked power. An off-by-default setting can refresh cloud state before every action when an API key is saved; refresh failure falls back to tracking.
+- Manual actions persist until another manual action or a game/lifecycle transition changes the lights.
 
-## Verified constraints
+## Existing transport decisions
 
-- The Govee Desktop DLL contract exists, but its GUID consistently returned error `1001`; it is not a product dependency.
-- The H6046 did not answer public LAN discovery or state requests, even on the same subnet.
-- The H6046 did accept fire-and-forget UDP 4003 power commands at its manual IP.
-- A guarded test verified local OFF and restore ON through cloud state. Cloud state lagged by up to about six seconds.
-- LAN commands have no acknowledgement. Explicit setup tests use cloud verification; ordinary sends do not query state after every command.
-- Clean-exit behavior is best-effort. An in-process plugin cannot act after a crash, forced termination, or power loss.
+- Primary verified hardware is H6046, with capability-based flexibility for similar devices.
+- Hybrid control uses cloud discovery/state and direct UDP 4003 commands to a reserved IP, with optional cloud fallback.
+- The user's Developer API key is encrypted with Windows DPAPI for the current user.
+- DreamView logical devices are hidden by default.
+- The Govee Desktop DLL/GUID path is not a runtime dependency after its repeatable authentication failure.
 
-Future product decisions concern telemetry effects, scene/mode support, richer per-device controls, and whether to publish SimHub actions/properties. They do not block version 0.1.
+Future decisions concern telemetry-driven effects, richer scene/mode support, reusable named device groups, and advanced formula/property integration. They do not block v0.2.
