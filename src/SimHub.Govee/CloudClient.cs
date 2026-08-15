@@ -19,6 +19,8 @@ namespace SimHub.Govee
         Task SetPowerAsync(string apiKey, DeviceSettings device, bool on, CancellationToken cancellationToken);
         Task SetBrightnessAsync(string apiKey, DeviceSettings device, int brightness, CancellationToken cancellationToken);
         Task SetColorAsync(string apiKey, DeviceSettings device, int red, int green, int blue, CancellationToken cancellationToken);
+        Task SetSegmentColorAsync(string apiKey, DeviceSettings device, IList<int> segments, int red, int green, int blue, CancellationToken cancellationToken);
+        Task SetSegmentBrightnessAsync(string apiKey, DeviceSettings device, IList<int> segments, int brightness, CancellationToken cancellationToken);
     }
 
     public sealed class GoveeCloudException : Exception
@@ -49,12 +51,24 @@ namespace SimHub.Govee
             foreach (var item in GetArray(root, "data").OfType<IDictionary<string, object>>())
             {
                 var capabilities = new List<string>();
+                var topology = new SegmentTopology();
                 foreach (var capability in GetArray(item, "capabilities").OfType<IDictionary<string, object>>())
                 {
                     string type = GetString(capability, "type"), instance = GetString(capability, "instance");
                     capabilities.Add(string.IsNullOrWhiteSpace(type) ? instance : type + "/" + instance);
+                    if (string.Equals(instance, "segmentedColorRgb", StringComparison.OrdinalIgnoreCase))
+                    {
+                        topology.SupportsSegmentedColor = true;
+                        topology.AdvertisedSegmentIndices.AddRange(ReadSegmentIndices(capability));
+                    }
+                    else if (string.Equals(instance, "segmentedBrightness", StringComparison.OrdinalIgnoreCase))
+                    {
+                        topology.SupportsSegmentedBrightness = true;
+                        topology.AdvertisedSegmentIndices.AddRange(ReadSegmentIndices(capability));
+                    }
                 }
-                result.Add(new DeviceSettings { DeviceId = GetString(item, "device"), Sku = GetString(item, "sku"), Name = FirstNonEmpty(GetString(item, "deviceName"), GetString(item, "name")), Capabilities = capabilities });
+                topology.AdvertisedSegmentIndices = topology.AdvertisedSegmentIndices.Distinct().OrderBy(x => x).ToList();
+                result.Add(new DeviceSettings { DeviceId = GetString(item, "device"), Sku = GetString(item, "sku"), Name = FirstNonEmpty(GetString(item, "deviceName"), GetString(item, "name")), Capabilities = capabilities, SegmentTopology = topology });
             }
             return result;
         }
@@ -82,6 +96,16 @@ namespace SimHub.Govee
         { if (brightness < 0 || brightness > 100) throw new ArgumentOutOfRangeException(nameof(brightness)); return ControlAsync(apiKey, device, "devices.capabilities.range", "brightness", brightness, token); }
         public Task SetColorAsync(string apiKey, DeviceSettings device, int red, int green, int blue, CancellationToken token)
         { ValidateByte(red); ValidateByte(green); ValidateByte(blue); return ControlAsync(apiKey, device, "devices.capabilities.color_setting", "colorRgb", (red << 16) | (green << 8) | blue, token); }
+        public Task SetSegmentColorAsync(string apiKey, DeviceSettings device, IList<int> segments, int red, int green, int blue, CancellationToken token)
+        {
+            ValidateSegments(segments); ValidateByte(red); ValidateByte(green); ValidateByte(blue);
+            return ControlAsync(apiKey, device, "devices.capabilities.segment_color_setting", "segmentedColorRgb", new Dictionary<string, object> { ["segment"] = segments.ToArray(), ["rgb"] = (red << 16) | (green << 8) | blue }, token);
+        }
+        public Task SetSegmentBrightnessAsync(string apiKey, DeviceSettings device, IList<int> segments, int brightness, CancellationToken token)
+        {
+            ValidateSegments(segments); if (brightness < 0 || brightness > 100) throw new ArgumentOutOfRangeException(nameof(brightness));
+            return ControlAsync(apiKey, device, "devices.capabilities.segment_color_setting", "segmentedBrightness", new Dictionary<string, object> { ["segment"] = segments.ToArray(), ["brightness"] = brightness }, token);
+        }
 
         private async Task ControlAsync(string apiKey, DeviceSettings device, string type, string instance, object value, CancellationToken token)
         {
@@ -123,6 +147,7 @@ namespace SimHub.Govee
         private static Dictionary<string, object> RequestPayload(DeviceSettings d) => new Dictionary<string, object> { ["requestId"] = Guid.NewGuid().ToString(), ["payload"] = new Dictionary<string, object> { ["sku"] = d.Sku, ["device"] = d.DeviceId } };
         private static void ValidateDevice(DeviceSettings d) { if (d == null || string.IsNullOrWhiteSpace(d.Sku) || string.IsNullOrWhiteSpace(d.DeviceId)) throw new ArgumentException("A cloud device ID and SKU are required."); }
         private static void ValidateByte(int v) { if (v < 0 || v > 255) throw new ArgumentOutOfRangeException(nameof(v)); }
+        private static void ValidateSegments(IList<int> segments) { if (segments == null || segments.Count == 0 || segments.Any(x => x < 0)) throw new ArgumentException("At least one non-negative segment index is required."); }
         private static string FirstNonEmpty(string a, string b) => string.IsNullOrWhiteSpace(a) ? b : a;
         private static object GetValue(IDictionary<string, object> d, string key) { object v; return d != null && d.TryGetValue(key, out v) ? v : null; }
         private static string GetString(IDictionary<string, object> d, string key) => Convert.ToString(GetValue(d, key), CultureInfo.InvariantCulture);
@@ -131,6 +156,50 @@ namespace SimHub.Govee
         private static int AsInt(object v) => Convert.ToInt32(v, CultureInfo.InvariantCulture);
         private static int? AsNullableInt(object v) { if (v == null || v is IDictionary<string, object> || v is IEnumerable && !(v is string)) return null; int n; return int.TryParse(Convert.ToString(v, CultureInfo.InvariantCulture), out n) ? n : (int?)null; }
         private static bool AsBool(object v) { if (v is bool) return (bool)v; int n; return int.TryParse(Convert.ToString(v, CultureInfo.InvariantCulture), out n) && n != 0; }
+
+        private static IEnumerable<int> ReadSegmentIndices(IDictionary<string, object> capability)
+        {
+            var values = new HashSet<int>();
+            CollectSegmentMetadata(GetValue(capability, "parameters"), values, false);
+            return values;
+        }
+
+        private static void CollectSegmentMetadata(object value, ISet<int> values, bool segmentContext)
+        {
+            var dictionary = value as IDictionary<string, object>;
+            if (dictionary != null)
+            {
+                string fieldName = GetString(dictionary, "fieldName");
+                bool isSegment = segmentContext || string.Equals(fieldName, "segment", StringComparison.OrdinalIgnoreCase);
+                object options = GetValue(dictionary, "options");
+                if (isSegment && options != null)
+                {
+                    foreach (var option in (options as IEnumerable ?? Array.Empty<object>()))
+                    {
+                        var optionObject = option as IDictionary<string, object>;
+                        int? number = AsNullableInt(optionObject == null ? option : FirstValue(optionObject, "value", "key", "id"));
+                        if (number.HasValue && number.Value >= 0) values.Add(number.Value);
+                    }
+                }
+                var range = GetValue(dictionary, "elementRange") as IDictionary<string, object> ?? GetValue(dictionary, "range") as IDictionary<string, object>;
+                if (isSegment && range != null)
+                {
+                    int? min = AsNullableInt(GetValue(range, "min")), max = AsNullableInt(GetValue(range, "max"));
+                    if (min.HasValue && max.HasValue && min.Value >= 0 && max.Value >= min.Value && max.Value - min.Value <= 255)
+                        for (int i = min.Value; i <= max.Value; i++) values.Add(i);
+                }
+                foreach (var pair in dictionary) CollectSegmentMetadata(pair.Value, values, isSegment);
+                return;
+            }
+            var sequence = value as IEnumerable;
+            if (sequence != null && !(value is string)) foreach (var item in sequence) CollectSegmentMetadata(item, values, segmentContext);
+        }
+
+        private static object FirstValue(IDictionary<string, object> dictionary, params string[] keys)
+        {
+            foreach (string key in keys) { object value; if (dictionary.TryGetValue(key, out value)) return value; }
+            return null;
+        }
         public void Dispose() { if (_ownsClient) _http.Dispose(); }
     }
 }

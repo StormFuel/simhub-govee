@@ -1,6 +1,6 @@
 [CmdletBinding()]
 param(
-    [string]$DeviceIp = '192.168.4.93'
+    [string]$DeviceIp = '192.0.2.1'
 )
 
 $ErrorActionPreference = 'Continue'

@@ -3,7 +3,7 @@
     <TargetFramework>net48</TargetFramework>
     <UseWPF>true</UseWPF>
     <AssemblyName>SimHub.Govee</AssemblyName>
-    <Version>0.2.0</Version>
+    <Version>0.3.0</Version>
     <RootNamespace>SimHub.Govee</RootNamespace>
     <LangVersion>latest</LangVersion>
     <Nullable>disable</Nullable>

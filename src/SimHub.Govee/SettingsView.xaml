@@ -2,196 +2,42 @@
   <ScrollViewer VerticalScrollBarVisibility="Auto">
     <StackPanel Margin="22" MaxWidth="1050" HorizontalAlignment="Left">
       <TextBlock Text="Govee Controller Plugin for SimHub" FontSize="26" FontWeight="SemiBold"/>
-      <TextBlock Text="Hybrid control for compatible Govee lights: cloud discovery and state, fast local commands, and automatic cloud fallback." Margin="0,5,0,18" TextWrapping="Wrap"/>
-
-      <GroupBox Header="1. Govee Developer API" Padding="12" Margin="0,0,0,12">
-        <StackPanel>
-          <TextBlock Text="Paste your own Developer API key. It is encrypted for your Windows account and is never shown again." TextWrapping="Wrap"/>
-          <DockPanel Margin="0,8,0,0">
-            <PasswordBox x:Name="ApiKeyBox" MinWidth="360" Margin="0,0,8,0"/>
-            <Button Content="Save key" Click="SaveKey_Click" Padding="14,5" Margin="0,0,8,0"/>
-            <Button Content="Remove key" Click="RemoveKey_Click" Padding="14,5"/>
-          </DockPanel>
-          <TextBlock x:Name="KeyStatusText" Margin="0,7,0,0"/>
-        </StackPanel>
-      </GroupBox>
-
-      <GroupBox Header="2. Devices" Padding="12" Margin="0,0,0,12">
-        <StackPanel>
-          <DockPanel Margin="0,0,0,8">
-            <Button Content="Refresh from Govee" Click="Refresh_Click" Padding="14,5" Margin="0,0,8,0"/>
-            <CheckBox x:Name="HideLogicalCheck" Content="Hide DreamView logical devices" VerticalAlignment="Center" Checked="SettingChanged" Unchecked="SettingChanged"/>
-          </DockPanel>
-          <DataGrid x:Name="DevicesGrid" AutoGenerateColumns="False" CanUserAddRows="False" MinHeight="160" HeadersVisibility="Column" SelectionMode="Single">
-            <DataGrid.Columns>
-              <DataGridCheckBoxColumn Header="Use" Binding="{Binding Selected}" Width="45"/>
-              <DataGridTextColumn Header="Name" Binding="{Binding Name}" Width="2*" IsReadOnly="True"/>
-              <DataGridTextColumn Header="Model" Binding="{Binding Sku}" Width="90" IsReadOnly="True"/>
-              <DataGridTextColumn Header="Optional reserved IP for local control" Binding="{Binding IpAddress}" Width="220"/>
-              <DataGridComboBoxColumn Header="Transport" SelectedItemBinding="{Binding Transport}" ItemsSource="{x:Static local:SettingsView.TransportModes}" Width="120"/>
-            </DataGrid.Columns>
-          </DataGrid>
-          <Border Background="#203A72" Padding="10" Margin="0,8,0,0" CornerRadius="3"><TextBlock Foreground="White" Text="The IP address is optional for Cloud mode. For faster Hybrid/local control, reserve an address for the light in your router's DHCP settings, enable LAN Control in Govee Home, and enter that address here. Across VLANs, permit outbound UDP 4003." TextWrapping="Wrap"/></Border>
-          <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
-            <Button Content="Save all settings" Click="Save_Click" Padding="14,5" Margin="0,0,8,0"/>
-            <Button Content="Test ON + verify" Click="TestOn_Click" Padding="14,5" Margin="0,0,8,0"/>
-            <Button Content="Test OFF + verify" Click="TestOff_Click" Padding="14,5"/>
-          </StackPanel>
-        </StackPanel>
-      </GroupBox>
-
-      <GroupBox Header="3. Light presets" Padding="12" Margin="0,0,0,12">
-        <StackPanel>
-          <TextBlock Text="Presets are reusable by game profiles and SimHub actions. Choose either HEX or RGB input, or use the visual picker/swatches. Preset targets are inherited unless a profile/action chooses an override." TextWrapping="Wrap"/>
-          <Border BorderBrush="#667080" BorderThickness="1" CornerRadius="4" Padding="12" Margin="0,10,0,10">
-            <Grid>
-              <Grid.ColumnDefinitions><ColumnDefinition Width="180"/><ColumnDefinition Width="220"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-              <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
-
-              <StackPanel Grid.Row="0" Grid.Column="0" Margin="0,0,12,10">
-                <TextBlock Text="Preset name" FontWeight="SemiBold" Margin="0,0,0,4"/>
-                <TextBox x:Name="PresetNameBox" MinWidth="160"/>
-              </StackPanel>
-              <StackPanel Grid.Row="0" Grid.Column="1" Margin="0,0,12,10">
-                <TextBlock Text="Optional brightness (0–100)" FontWeight="SemiBold" Margin="0,0,0,4"/>
-                <TextBox x:Name="PresetBrightnessBox" Width="90" HorizontalAlignment="Left"/>
-              </StackPanel>
-              <StackPanel Grid.Row="0" Grid.Column="2" Margin="0,0,0,10">
-                <TextBlock Text="Power behavior" FontWeight="SemiBold" Margin="0,0,0,4"/>
-                <CheckBox x:Name="PresetTurnOnCheck" Content="Turn the light on when this preset is applied" IsChecked="True"/>
-              </StackPanel>
-
-              <StackPanel Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="2" Margin="0,0,12,10">
-                <TextBlock Text="Color input method" FontWeight="SemiBold" Margin="0,0,0,4"/>
-                <WrapPanel>
-                  <RadioButton x:Name="HexModeRadio" Content="HEX" GroupName="ColorInputMode" IsChecked="True" Checked="ColorModeChanged" Margin="0,0,18,0"/>
-                  <RadioButton x:Name="RgbModeRadio" Content="RGB" GroupName="ColorInputMode" Checked="ColorModeChanged"/>
-                </WrapPanel>
-              </StackPanel>
-              <StackPanel Grid.Row="2" Grid.Column="0" Margin="0,0,12,10">
-                <TextBlock Text="HEX color" FontWeight="SemiBold" Margin="0,0,0,4"/>
-                <TextBox x:Name="PresetHexBox" Width="100" Text="#FFFFFF" HorizontalAlignment="Left" TextChanged="PresetColorChanged"/>
-                <TextBlock Text="Format: #RRGGBB" FontSize="11" Opacity="0.75"/>
-              </StackPanel>
-              <StackPanel x:Name="PresetRgbPanel" Grid.Row="2" Grid.Column="1" Margin="0,0,12,10" IsEnabled="False">
-                <TextBlock Text="RGB color" FontWeight="SemiBold" Margin="0,0,0,4"/>
-                <WrapPanel>
-                  <StackPanel Margin="0,0,8,0"><TextBlock Text="Red" FontSize="11"/><TextBox x:Name="PresetRedBox" Width="55" Text="255" TextChanged="PresetColorChanged"/></StackPanel>
-                  <StackPanel Margin="0,0,8,0"><TextBlock Text="Green" FontSize="11"/><TextBox x:Name="PresetGreenBox" Width="55" Text="255" TextChanged="PresetColorChanged"/></StackPanel>
-                  <StackPanel><TextBlock Text="Blue" FontSize="11"/><TextBox x:Name="PresetBlueBox" Width="55" Text="255" TextChanged="PresetColorChanged"/></StackPanel>
-                </WrapPanel>
-              </StackPanel>
-              <StackPanel Grid.Row="1" Grid.RowSpan="2" Grid.Column="2" Margin="0,0,0,10">
-                <TextBlock Text="Visual color selection" FontWeight="SemiBold" Margin="0,0,0,4"/>
-                <WrapPanel>
-                  <Border x:Name="PresetColorPreview" Width="54" Height="54" Background="White" BorderBrush="#667080" BorderThickness="1" CornerRadius="3" Margin="0,0,10,0"/>
-                  <Button Content="Choose color…" Click="ChoosePresetColor_Click" Padding="12,5" VerticalAlignment="Center"/>
-                </WrapPanel>
-                <TextBlock Text="Common swatches" FontSize="11" Margin="0,7,0,3"/>
-                <WrapPanel>
-                  <Button Tag="#FFFFFF" Background="#FFFFFF" Width="28" Height="28" Click="PresetSwatch_Click" ToolTip="White" Margin="0,0,4,0"/>
-                  <Button Tag="#FF0000" Background="#FF0000" Width="28" Height="28" Click="PresetSwatch_Click" ToolTip="Red" Margin="0,0,4,0"/>
-                  <Button Tag="#FF8000" Background="#FF8000" Width="28" Height="28" Click="PresetSwatch_Click" ToolTip="Orange" Margin="0,0,4,0"/>
-                  <Button Tag="#FFFF00" Background="#FFFF00" Width="28" Height="28" Click="PresetSwatch_Click" ToolTip="Yellow" Margin="0,0,4,0"/>
-                  <Button Tag="#00FF00" Background="#00FF00" Width="28" Height="28" Click="PresetSwatch_Click" ToolTip="Green" Margin="0,0,4,0"/>
-                  <Button Tag="#00BFFF" Background="#00BFFF" Width="28" Height="28" Click="PresetSwatch_Click" ToolTip="Cyan" Margin="0,0,4,0"/>
-                  <Button Tag="#0000FF" Background="#0000FF" Width="28" Height="28" Click="PresetSwatch_Click" ToolTip="Blue" Margin="0,0,4,0"/>
-                  <Button Tag="#8000FF" Background="#8000FF" Width="28" Height="28" Click="PresetSwatch_Click" ToolTip="Violet" Margin="0,0,4,0"/>
-                  <Button Tag="#FF00FF" Background="#FF00FF" Width="28" Height="28" Click="PresetSwatch_Click" ToolTip="Magenta"/>
-                </WrapPanel>
-              </StackPanel>
-
-              <StackPanel Grid.Row="3" Grid.Column="0" Grid.ColumnSpan="3" Margin="0,0,0,10">
-                <TextBlock Text="Target lights" FontWeight="SemiBold" Margin="0,0,0,4"/>
-                <TextBlock Text="Choose all selected lights, or select specific discovered lights for this preset." TextWrapping="Wrap" Margin="0,0,0,5"/>
-                <RadioButton x:Name="PresetAllTargetsRadio" Content="All lights selected in the Devices section" GroupName="PresetTargetMode" IsChecked="True" Checked="PresetTargetModeChanged" Margin="0,0,0,4"/>
-                <RadioButton x:Name="PresetSpecificTargetsRadio" Content="Only these lights:" GroupName="PresetTargetMode" Checked="PresetTargetModeChanged"/>
-                <StackPanel x:Name="PresetTargetList" Margin="20,5,0,0" IsEnabled="False"/>
-                <TextBlock x:Name="PresetNoTargetsText" Text="No selected devices are available. Select lights in the Devices section first." Foreground="#C06040" Margin="20,5,0,0" Visibility="Collapsed"/>
-              </StackPanel>
-
-              <WrapPanel Grid.Row="4" Grid.Column="0" Grid.ColumnSpan="3">
-                <Button Content="New preset" Click="NewPreset_Click" Padding="12,5" Margin="0,0,8,0"/>
-                <Button Content="Add preset" Click="AddPreset_Click" Padding="12,5" Margin="0,0,8,0"/>
-                <Button Content="Update selected preset" Click="UpdatePreset_Click" Padding="12,5"/>
-              </WrapPanel>
-            </Grid>
-          </Border>
-          <DataGrid x:Name="PresetsGrid" AutoGenerateColumns="False" CanUserAddRows="False" SelectionMode="Single" MinHeight="120" SelectionChanged="PresetSelectionChanged">
-            <DataGrid.Columns>
-              <DataGridTextColumn Header="Name" Binding="{Binding Name}" Width="2*" IsReadOnly="True"/>
-              <DataGridTextColumn Header="Color" Binding="{Binding HexColor}" Width="90" IsReadOnly="True"/>
-              <DataGridTextColumn Header="Brightness" Binding="{Binding Brightness}" Width="90" IsReadOnly="True"/>
-              <DataGridCheckBoxColumn Header="Turn on" Binding="{Binding TurnOn}" Width="70" IsReadOnly="True"/>
-              <DataGridTextColumn Header="Targets" Binding="{Binding TargetSummary}" IsReadOnly="True" Width="130"/>
-            </DataGrid.Columns>
-          </DataGrid>
-          <WrapPanel Margin="0,8,0,0"><Button Content="Delete selected preset" Click="DeletePreset_Click" Padding="12,4"/></WrapPanel>
-        </StackPanel>
-      </GroupBox>
-
-      <GroupBox Header="4. Game profiles" Padding="12" Margin="0,0,0,12">
-        <StackPanel>
-          <TextBlock Text="The Default Game Profile applies when no enabled custom profile matches. It initially leaves lights unchanged. Power On preserves current color and brightness." TextWrapping="Wrap"/>
-          <WrapPanel Margin="0,8,0,8">
-            <TextBlock Text="Default:" VerticalAlignment="Center" Margin="0,0,6,0"/><ComboBox x:Name="DefaultBehaviorBox" Width="140" Margin="0,0,8,0"/>
-            <ComboBox x:Name="DefaultPresetBox" Width="180" DisplayMemberPath="Name" SelectedValuePath="Id" Margin="0,0,8,0" SelectionChanged="DefaultPresetSelectionChanged"/>
-            <Button Content="Default targets…" Click="DefaultTargets_Click" Padding="12,4"/>
-          </WrapPanel>
-          <WrapPanel Margin="0,0,0,4">
-            <StackPanel Margin="0,0,8,0"><TextBlock Text="Registered SimHub game" FontWeight="SemiBold" Margin="0,0,0,3"/><ComboBox x:Name="GamePickerBox" Width="260" DisplayMemberPath="DisplayName" SelectedValuePath="Code" IsTextSearchEnabled="True"/></StackPanel>
-            <Button Content="Use detected game" Click="UseDetectedGame_Click" Padding="12,4" Margin="0,0,8,0"/>
-            <StackPanel Margin="0,0,8,0"><TextBlock Text="Behavior" FontWeight="SemiBold" Margin="0,0,0,3"/><ComboBox x:Name="NewProfileBehaviorBox" Width="140"/></StackPanel>
-            <StackPanel Margin="0,0,8,0"><TextBlock Text="Preset (selecting one uses Apply Preset)" FontWeight="SemiBold" Margin="0,0,0,3"/><ComboBox x:Name="NewProfilePresetBox" Width="210" DisplayMemberPath="Name" SelectedValuePath="Id" SelectionChanged="ProfilePresetSelectionChanged"/></StackPanel>
-            <Button Content="Add profile" Click="AddProfile_Click" Padding="12,4" Margin="0,0,8,0"/><Button Content="Update selected" Click="UpdateProfile_Click" Padding="12,4"/>
-          </WrapPanel>
-          <TextBlock Text="This list comes from SimHub's registered game catalog. Selecting a preset automatically selects Apply Preset; Power On only turns the light on and preserves its current color. Profiles apply as soon as SimHub detects the game process; they do not wait for live telemetry. Hidden games are omitted unless already configured or currently detected." FontSize="11" Opacity="0.75" Margin="0,0,0,8" TextWrapping="Wrap"/>
-          <DataGrid x:Name="ProfilesGrid" AutoGenerateColumns="False" CanUserAddRows="False" SelectionMode="Single" MinHeight="120" SelectionChanged="ProfileSelectionChanged">
-            <DataGrid.Columns><DataGridCheckBoxColumn Header="Enabled" Binding="{Binding Enabled}" Width="65"/><DataGridTextColumn Header="Game code" Binding="{Binding GameCode}" Width="2*"/><DataGridTextColumn Header="Behavior" Binding="{Binding Behavior}" Width="120"/><DataGridTextColumn Header="Preset" Binding="{Binding PresetName}" Width="*" IsReadOnly="True"/><DataGridTextColumn Header="Targets" Binding="{Binding TargetSummary}" Width="130" IsReadOnly="True"/></DataGrid.Columns>
-          </DataGrid>
-          <WrapPanel Margin="0,8,0,0"><Button Content="Choose target lights…" Click="ProfileTargets_Click" Padding="12,4" Margin="0,0,8,0"/><Button Content="Delete profile" Click="DeleteProfile_Click" Padding="12,4"/></WrapPanel>
-          <Expander Header="How Restore Previous works" Margin="0,10,0,0"><TextBlock Margin="8" TextWrapping="Wrap" Text="Hybrid/Cloud devices: power, brightness, and RGB are captured through cloud before the game profile is applied. Local-only devices cannot report reliable physical state, so the plugin restores its last commanded state when available; otherwise it applies the global default state and reports a best-effort restoration. Active scenes, music modes, segmented effects, and DreamView cannot be restored exactly because the API does not expose their complete current state."/></Expander>
-        </StackPanel>
-      </GroupBox>
-
-      <GroupBox Header="5. SimHub actions" Padding="12" Margin="0,0,0,12">
-        <StackPanel>
-          <TextBlock Text="Lights On, Lights Off, and Toggle Lights are provided automatically. Every color preset also receives a managed action that turns on the light and applies that color. Managed keys remain stable when presets are renamed; manage those actions through their presets." TextWrapping="Wrap"/>
-          <CheckBox x:Name="RefreshStateBeforeActionCheck" Content="Refresh power state from Govee Cloud before every SimHub action" Margin="0,10,0,0" Checked="SettingChanged" Unchecked="SettingChanged"/>
-          <TextBlock x:Name="RefreshStateBeforeActionHelp" Text="Optional and off by default. This uses the Developer API key saved in Step 1 and adds a cloud request before each action. Enable it when Govee Home, Stream Deck, iCUE, or another app may change the lights; otherwise Toggle uses the faster state tracked by this plugin." FontSize="11" Opacity="0.75" Margin="22,3,0,0" TextWrapping="Wrap"/>
-          <WrapPanel Margin="0,8,0,8">
-            <TextBox x:Name="ActionKeyBox" Width="150" Margin="0,0,8,0" ToolTip="Permanent key, e.g. RaceRed"/>
-            <TextBox x:Name="ActionNameBox" Width="180" Margin="0,0,8,0" ToolTip="Display name"/>
-            <ComboBox x:Name="ActionTypeBox" Width="130" Margin="0,0,8,0"/>
-            <ComboBox x:Name="ActionPresetBox" Width="180" DisplayMemberPath="Name" SelectedValuePath="Id" Margin="0,0,8,0"/>
-            <Button Content="New action" Click="NewAction_Click" Padding="12,4" Margin="0,0,8,0"/><Button Content="Create action" Click="AddAction_Click" Padding="12,4" Margin="0,0,8,0"/><Button Content="Update selected" Click="UpdateAction_Click" Padding="12,4"/>
-          </WrapPanel>
-          <DataGrid x:Name="ActionsGrid" AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="True" SelectionMode="Single" MinHeight="120" SelectionChanged="ActionSelectionChanged">
-            <DataGrid.Columns><DataGridTextColumn Header="Registered action (immutable)" Binding="{Binding RegisteredName}" Width="2*" IsReadOnly="True"/><DataGridTextColumn Header="Label" Binding="{Binding DisplayName}" Width="*"/><DataGridTextColumn Header="Type" Binding="{Binding Type}" Width="110" IsReadOnly="True"/><DataGridTextColumn Header="Preset" Binding="{Binding PresetName}" Width="*" IsReadOnly="True"/><DataGridTextColumn Header="Targets" Binding="{Binding TargetSummary}" Width="130" IsReadOnly="True"/></DataGrid.Columns>
-          </DataGrid>
-          <WrapPanel Margin="0,8,0,0"><Button x:Name="ActionTargetsButton" Content="Choose target lights…" Click="ActionTargets_Click" Padding="12,4" Margin="0,0,8,0"/><Button x:Name="DeleteActionButton" Content="Delete action…" Click="DeleteAction_Click" Padding="12,4"/></WrapPanel>
-          <TextBlock Text="A manual action remains in effect until another manual action or a game start, switch, stop, or SimHub shutdown policy changes the lights." Margin="0,8,0,0" TextWrapping="Wrap"/>
-        </StackPanel>
-      </GroupBox>
-
-      <GroupBox Header="6. SimHub lifecycle" Padding="12" Margin="0,0,0,12">
-        <StackPanel>
-          <WrapPanel>
-            <TextBlock Text="At SimHub start:" VerticalAlignment="Center" Margin="0,0,8,0"/>
-            <ComboBox x:Name="StartupPolicyBox" Width="170" SelectionChanged="SettingChanged"/>
-            <CheckBox x:Name="StartupOnCheck" Content="Configured state is ON" Margin="16,2,0,0" Checked="SettingChanged" Unchecked="SettingChanged"/>
-          </WrapPanel>
-          <WrapPanel Margin="0,10,0,0">
-            <TextBlock Text="At clean exit:" VerticalAlignment="Center" Margin="0,0,8,0"/>
-            <ComboBox x:Name="ExitPolicyBox" Width="170" SelectionChanged="SettingChanged"/>
-            <CheckBox x:Name="ExitOnCheck" Content="Configured state is ON" Margin="16,2,0,0" Checked="SettingChanged" Unchecked="SettingChanged"/>
-          </WrapPanel>
-          <CheckBox x:Name="FallbackCheck" Content="Automatically fall back to cloud control" Margin="0,10,0,0" Checked="SettingChanged" Unchecked="SettingChanged"/>
-          <TextBlock Text="Restore Previous restores known power, brightness, and RGB values captured through cloud at startup. Active scenes and modes cannot be restored exactly." Margin="0,8,0,0" TextWrapping="Wrap"/>
-        </StackPanel>
-      </GroupBox>
-
-      <GroupBox Header="7. Status" Padding="12"><TextBlock x:Name="StatusText" TextWrapping="Wrap"/></GroupBox>
+      <TextBlock Text="Hybrid control for compatible Govee room lights, with reusable presets, game profiles, and SimHub actions." Margin="0,5,0,18" TextWrapping="Wrap"/>
+      <GroupBox Header="1. Govee Developer API" Padding="12" Margin="0,0,0,12"><StackPanel>
+        <TextBlock Text="Paste your own Developer API key. It is encrypted for your Windows account and is never shown again." TextWrapping="Wrap"/>
+        <DockPanel Margin="0,8,0,0"><PasswordBox x:Name="ApiKeyBox" MinWidth="360" Margin="0,0,8,0"/><Button Content="Save key" Click="SaveKey_Click" Padding="14,5" Margin="0,0,8,0"/><Button Content="Remove key" Click="RemoveKey_Click" Padding="14,5"/></DockPanel><TextBlock x:Name="KeyStatusText" Margin="0,7,0,0"/>
+      </StackPanel></GroupBox>
+      <GroupBox Header="2. Devices" Padding="12" Margin="0,0,0,12"><StackPanel>
+        <DockPanel Margin="0,0,0,8"><Button Content="Refresh from Govee" Click="Refresh_Click" Padding="14,5" Margin="0,0,8,0"/><CheckBox x:Name="HideLogicalCheck" Content="Hide DreamView logical devices" VerticalAlignment="Center" Checked="SettingChanged" Unchecked="SettingChanged"/></DockPanel>
+        <DataGrid x:Name="DevicesGrid" AutoGenerateColumns="False" CanUserAddRows="False" MinHeight="160" SelectionMode="Single"><DataGrid.Columns><DataGridCheckBoxColumn Header="Use" Binding="{Binding Selected}" Width="45"/><DataGridTextColumn Header="Name" Binding="{Binding Name}" Width="2*" IsReadOnly="True"/><DataGridTextColumn Header="Model" Binding="{Binding Sku}" Width="90" IsReadOnly="True"/><DataGridTextColumn Header="Optional reserved IP for local control" Binding="{Binding IpAddress}" Width="220"/><DataGridComboBoxColumn Header="Transport" SelectedItemBinding="{Binding Transport}" ItemsSource="{x:Static local:SettingsView.TransportModes}" Width="120"/></DataGrid.Columns></DataGrid>
+        <Border Background="#203A72" Padding="10" Margin="0,8,0,0" CornerRadius="3"><TextBlock Foreground="White" Text="The IP address is optional for Cloud mode. For Hybrid/local control, reserve it in DHCP, enable LAN Control in Govee Home, and enter it here. Across VLANs, permit outbound UDP 4003." TextWrapping="Wrap"/></Border>
+        <WrapPanel Margin="0,10,0,0"><Button Content="Save all settings" Click="Save_Click" Padding="14,5" Margin="0,0,8,0"/><Button Content="Test ON + verify" Click="TestOn_Click" Padding="14,5" Margin="0,0,8,0"/><Button Content="Test OFF + verify" Click="TestOff_Click" Padding="14,5" Margin="0,0,8,0"/><Button Content="Device compatibility test / report…" Click="CompatibilityReport_Click" Padding="14,5"/></WrapPanel>
+      </StackPanel></GroupBox>
+      <GroupBox Header="3. Light presets" Padding="12" Margin="0,0,0,12"><StackPanel>
+        <TextBlock Text="Presets use a dedicated Simple/Advanced editor. Double-click a row or use Edit. 'Custom' means the effective result is not one uniform value." TextWrapping="Wrap" Margin="0,0,0,8"/>
+        <DataGrid x:Name="PresetsGrid" AutoGenerateColumns="False" IsReadOnly="True" CanUserAddRows="False" SelectionMode="Single" MinHeight="140" MouseDoubleClick="PresetDoubleClick"><DataGrid.Columns><DataGridTextColumn Header="Name" Binding="{Binding Name}" Width="2*"/><DataGridTextColumn Header="Color" Binding="{Binding ColorSummary}" Width="90"/><DataGridTextColumn Header="Brightness" Binding="{Binding BrightnessSummary}" Width="90"/><DataGridTextColumn Header="Mode" Binding="{Binding AppearanceSummary}" Width="90"/><DataGridCheckBoxColumn Header="Turn on" Binding="{Binding TurnOn}" Width="70"/><DataGridTextColumn Header="Targets" Binding="{Binding TargetSummary}" Width="140"/></DataGrid.Columns></DataGrid>
+        <WrapPanel Margin="0,8,0,0"><Button Content="Add…" Click="AddPreset_Click" Padding="12,5" Margin="0,0,8,0"/><Button Content="Edit…" Click="EditPreset_Click" Padding="12,5" Margin="0,0,8,0"/><Button Content="Delete…" Click="DeletePreset_Click" Padding="12,5"/></WrapPanel>
+        <CheckBox x:Name="ShowLivePreviewWarningCheck" Content="Show the safety warning before live segmented preview" Margin="0,9,0,0" Checked="SettingChanged" Unchecked="SettingChanged"/>
+      </StackPanel></GroupBox>
+      <GroupBox Header="4. Game profiles" Padding="12" Margin="0,0,0,12"><StackPanel>
+        <TextBlock Text="The Default Game Profile applies when no enabled custom profile matches. All profiles use the same dialog-based workflow." TextWrapping="Wrap"/>
+        <Border BorderBrush="#667080" BorderThickness="1" Padding="10" Margin="0,8,0,10"><DockPanel><Button Content="Edit default…" Click="EditDefaultProfile_Click" DockPanel.Dock="Right" Padding="12,5"/><TextBlock x:Name="DefaultProfileSummaryText" VerticalAlignment="Center" TextWrapping="Wrap"/></DockPanel></Border>
+        <DataGrid x:Name="ProfilesGrid" AutoGenerateColumns="False" IsReadOnly="True" CanUserAddRows="False" SelectionMode="Single" MinHeight="130" MouseDoubleClick="ProfileDoubleClick"><DataGrid.Columns><DataGridCheckBoxColumn Header="Enabled" Binding="{Binding Enabled}" Width="65"/><DataGridTextColumn Header="Game" Binding="{Binding GameCode}" Width="2*"/><DataGridTextColumn Header="Behavior" Binding="{Binding Behavior}" Width="120"/><DataGridTextColumn Header="Preset" Binding="{Binding PresetName}" Width="*"/><DataGridTextColumn Header="Targets" Binding="{Binding TargetSummary}" Width="140"/></DataGrid.Columns></DataGrid>
+        <WrapPanel Margin="0,8,0,0"><Button Content="Add…" Click="AddProfile_Click" Padding="12,5" Margin="0,0,8,0"/><Button Content="Edit…" Click="EditProfile_Click" Padding="12,5" Margin="0,0,8,0"/><Button Content="Delete…" Click="DeleteProfile_Click" Padding="12,5"/></WrapPanel>
+        <Expander Header="How Restore Previous works" Margin="0,10,0,0"><TextBlock Margin="8" TextWrapping="Wrap" Text="Hybrid/Cloud devices restore known power, brightness, and RGB. Local-only and segmented restoration use the plugin's last commanded state when available. External scenes and modes cannot be reconstructed exactly."/></Expander>
+      </StackPanel></GroupBox>
+      <GroupBox Header="5. SimHub actions" Padding="12" Margin="0,0,0,12"><StackPanel>
+        <TextBlock Text="Double-click any action to configure it. Built-in power/toggle actions allow target selection while keeping their identity and behavior locked. Managed color actions open their owning preset; custom action keys remain immutable." TextWrapping="Wrap"/>
+        <CheckBox x:Name="RefreshStateBeforeActionCheck" Content="Refresh power state from Govee Cloud before every SimHub action" Margin="0,10,0,8" Checked="SettingChanged" Unchecked="SettingChanged"/>
+        <DataGrid x:Name="ActionsGrid" AutoGenerateColumns="False" IsReadOnly="True" CanUserAddRows="False" SelectionMode="Single" MinHeight="140" MouseDoubleClick="ActionDoubleClick"><DataGrid.Columns><DataGridTextColumn Header="Registered action (immutable)" Binding="{Binding RegisteredName}" Width="2*"/><DataGridTextColumn Header="Label" Binding="{Binding DisplayName}" Width="*"/><DataGridTextColumn Header="Type" Binding="{Binding Type}" Width="110"/><DataGridTextColumn Header="Preset" Binding="{Binding PresetName}" Width="*"/><DataGridTextColumn Header="Targets" Binding="{Binding TargetSummary}" Width="140"/></DataGrid.Columns></DataGrid>
+        <WrapPanel Margin="0,8,0,0"><Button Content="Add…" Click="AddAction_Click" Padding="12,5" Margin="0,0,8,0"/><Button Content="Edit…" Click="EditAction_Click" Padding="12,5" Margin="0,0,8,0"/><Button Content="Delete…" Click="DeleteAction_Click" Padding="12,5"/></WrapPanel>
+      </StackPanel></GroupBox>
+      <GroupBox Header="6. SimHub lifecycle" Padding="12" Margin="0,0,0,12"><StackPanel>
+        <WrapPanel><TextBlock Text="At SimHub start:" VerticalAlignment="Center" Margin="0,0,8,0"/><ComboBox x:Name="StartupPolicyBox" Width="170" SelectionChanged="SettingChanged"/><CheckBox x:Name="StartupOnCheck" Content="Configured state is ON" Margin="16,2,0,0" Checked="SettingChanged" Unchecked="SettingChanged"/></WrapPanel>
+        <WrapPanel Margin="0,10,0,0"><TextBlock Text="Startup color profile:" VerticalAlignment="Center" Margin="0,0,8,0"/><ComboBox x:Name="StartupPresetBox" Width="240" DisplayMemberPath="Name" SelectedValuePath="Id" SelectionChanged="SettingChanged"/></WrapPanel><TextBlock Text="Configured State applies the chosen preset. No preset uses the ON/OFF checkbox. Leave Unchanged sends neither." FontSize="11" Opacity="0.78" Margin="0,6,0,0" TextWrapping="Wrap"/>
+        <WrapPanel Margin="0,10,0,0"><TextBlock Text="At clean exit:" VerticalAlignment="Center" Margin="0,0,8,0"/><ComboBox x:Name="ExitPolicyBox" Width="170" SelectionChanged="SettingChanged"/><CheckBox x:Name="ExitOnCheck" Content="Configured state is ON" Margin="16,2,0,0" Checked="SettingChanged" Unchecked="SettingChanged"/></WrapPanel><CheckBox x:Name="FallbackCheck" Content="Automatically fall back to cloud control" Margin="0,10,0,0" Checked="SettingChanged" Unchecked="SettingChanged"/>
+      </StackPanel></GroupBox>
+      <GroupBox Header="7. Status and recovery" Padding="12"><StackPanel><TextBlock x:Name="StatusText" TextWrapping="Wrap"/><Separator Margin="0,12,0,10"/><TextBlock Text="Reset returns this module to first-run defaults and removes its encrypted API key, devices, presets, profiles, action configuration, lifecycle choices, and preferences. It does not command the lights. Restart SimHub afterward." TextWrapping="Wrap"/><Button Content="Reset all plugin settings…" Click="ResetAllSettings_Click" Background="#B43A3A" Foreground="White" Padding="14,6" Margin="0,9,0,0" HorizontalAlignment="Left"/></StackPanel></GroupBox>
     </StackPanel>
   </ScrollViewer>
 </UserControl>
