@@ -119,10 +119,13 @@ internal static class Program
     }
     private static void EmbeddedAssetTests()
     {
-        using (var stream = typeof(DeviceSettings).Assembly.GetManifestResourceStream("SimHub.Govee.Assets.SimHubGoveeIcon.png"))
+        foreach (var resource in new[] { "SimHub.Govee.Assets.SimHubGoveeIcon.png", "SimHub.Govee.Assets.SimHubGoveeIconLight.png" })
         {
-            True(stream != null, "plugin icon embedded");
-            True(stream != null && stream.Length > 1000, "plugin icon is nonempty");
+            using (var stream = typeof(DeviceSettings).Assembly.GetManifestResourceStream(resource))
+            {
+                True(stream != null, resource + " embedded");
+                True(stream != null && stream.Length > 1000, resource + " is nonempty");
+            }
         }
     }
     private static void LanValidationTests()

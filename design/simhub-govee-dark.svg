@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-labelledby="title">
+  <title id="title">Govee Controller Plugin for SimHub</title>
+  <path fill="#F7F8FA" d="M244 12H128C63.9 12 12 63.9 12 128s51.9 116 116 116c64.1 0 116-51.9 116-116V88h-42c-6.6 0-12 5.4-12 12v40h21c-16 36-47 60-83 60-39.8 0-72-32.2-72-72s32.2-72 72-72h76c22.1 0 40-21.9 40-44Z"/>
+  <path fill="#F7F8FA" d="M176 66h-48a62 62 0 1 0 43.8 105.8L180 151l-26.5 2.5A36 36 0 1 1 128 92h22c14.4 0 26-11.6 26-26Z"/>
+</svg>

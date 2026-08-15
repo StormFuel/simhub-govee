@@ -7,6 +7,7 @@ using System.Linq;
 using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
@@ -32,8 +33,9 @@ namespace SimHub.Govee
         public PluginManager PluginManager { get; set; }
         public string Status { get; private set; } = "Not initialized";
         internal string LastDetectedGame { get; private set; }
-        private static readonly ImageSource PluginIcon = LoadPluginIcon();
-        public ImageSource PictureIcon => PluginIcon;
+        private static readonly ImageSource DarkThemePluginIcon = LoadPluginIcon("SimHub.Govee.Assets.SimHubGoveeIcon.png");
+        private static readonly ImageSource LightThemePluginIcon = LoadPluginIcon("SimHub.Govee.Assets.SimHubGoveeIconLight.png");
+        public ImageSource PictureIcon => IsDarkApplicationTheme() ? DarkThemePluginIcon : LightThemePluginIcon;
         public string LeftMenuTitle => "Govee Controller";
 
         public void Init(PluginManager pluginManager)
@@ -127,9 +129,28 @@ namespace SimHub.Govee
         internal void SetStatus(string status) { Status = status; }
         internal static string SafeMessage(Exception ex) => (ex?.Message ?? "Unknown error").Replace("\r", " ").Replace("\n", " ");
 
-        private static ImageSource LoadPluginIcon()
+        private static bool IsDarkApplicationTheme()
         {
-            using (Stream stream = Assembly.GetExecutingAssembly().GetManifestResourceStream("SimHub.Govee.Assets.SimHubGoveeIcon.png"))
+            try
+            {
+                var window = Application.Current == null ? null : Application.Current.MainWindow;
+                var foreground = window == null ? null : window.Foreground as SolidColorBrush;
+                if (foreground != null) return RelativeLuminance(foreground.Color) > 0.5;
+                var background = window == null ? null : window.Background as SolidColorBrush;
+                if (background != null) return RelativeLuminance(background.Color) < 0.5;
+            }
+            catch { }
+            return true;
+        }
+
+        private static double RelativeLuminance(Color color)
+        {
+            return (0.2126 * color.R + 0.7152 * color.G + 0.0722 * color.B) / 255.0;
+        }
+
+        private static ImageSource LoadPluginIcon(string resourceName)
+        {
+            using (Stream stream = Assembly.GetExecutingAssembly().GetManifestResourceStream(resourceName))
             {
                 if (stream == null) return null;
                 var icon = new BitmapImage();

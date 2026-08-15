@@ -1,7 +1,11 @@
 # Govee Controller Plugin for SimHub
 
 <p align="center">
-  <img src="design/simhub-govee.png" alt="Govee Controller Plugin for SimHub logo" width="180">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="design/simhub-govee-dark.svg">
+    <source media="(prefers-color-scheme: light)" srcset="design/simhub-govee-light.svg">
+    <img src="design/simhub-govee-light.svg" alt="Govee Controller Plugin for SimHub logo" width="180">
+  </picture>
 </p>
 
 Govee Controller Plugin for SimHub is a Windows plugin for controlling compatible Govee room lights from SimHub. It appears as **Govee Controller** in SimHub's menu. The first verified device is the **H6046 RGBIC TV Light Bars**, but devices are discovered from Govee capability metadata rather than hard-coded by model.
