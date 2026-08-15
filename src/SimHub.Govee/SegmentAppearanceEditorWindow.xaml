@@ -1,0 +1,17 @@
+<Window x:Class="SimHub.Govee.SegmentAppearanceEditorWindow" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" Title="Segmented appearance" Width="700" SizeToContent="Height" MaxHeight="780" WindowStartupLocation="CenterOwner">
+  <ScrollViewer VerticalScrollBarVisibility="Auto"><StackPanel Margin="18">
+    <TextBlock x:Name="HeadingText" FontSize="21" FontWeight="SemiBold"/>
+    <TextBlock Text="Live preview is active. Valid typed/pasted values preview after a short pause; Enter previews immediately. The caller restores the captured light state when this window closes." TextWrapping="Wrap" Margin="0,5,0,6" FontWeight="SemiBold"/>
+    <TextBlock x:Name="StatusText" Text="Choose a color or brightness to preview it on the physical light." TextWrapping="Wrap" FontSize="11" Opacity="0.8" Margin="0,0,0,10"/>
+    <WrapPanel x:Name="ZoneButtonsPanel" Margin="0,0,0,10"/>
+    <Grid Margin="0,0,0,4"><Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="105"/><ColumnDefinition Width="75"/><ColumnDefinition Width="220"/></Grid.ColumnDefinitions><TextBlock Grid.Column="1" Text="HEX" FontWeight="SemiBold"/><TextBlock Grid.Column="2" Text="Picker" FontWeight="SemiBold"/><TextBlock Grid.Column="3" Text="Brightness" FontWeight="SemiBold"/></Grid>
+    <StackPanel x:Name="RowsPanel"/>
+    <TextBlock x:Name="ErrorText" Foreground="#D05040" TextWrapping="Wrap" Margin="0,10,0,0"/>
+    <Border BorderBrush="#667080" BorderThickness="1" Padding="10" Margin="0,12,0,0"><StackPanel>
+      <TextBlock Text="Test the complete appearance" FontWeight="SemiBold"/>
+      <TextBlock Text="Applies every current segment color and brightness, holds it for the chosen time, then restores the captured pre-editor state." TextWrapping="Wrap" FontSize="11" Opacity="0.8" Margin="0,3,0,7"/>
+      <WrapPanel><TextBox x:Name="TestSecondsBox" Width="50" VerticalContentAlignment="Center" TextChanged="TestSecondsChanged"/><TextBlock Text=" seconds (1–120)" VerticalAlignment="Center" Margin="4,0,10,0"/><Button x:Name="TestButton" Content="Test for 10 seconds" Click="Test_Click" Padding="12,5"/></WrapPanel>
+    </StackPanel></Border>
+    <WrapPanel Margin="0,14,0,0"><Button x:Name="SaveButton" Content="Save override" Click="Save_Click" IsDefault="True" Padding="14,6" Margin="0,0,8,0"/><Button x:Name="UniformButton" Content="Use uniform preset" Click="Uniform_Click" Padding="14,6" Margin="0,0,8,0"/><Button Content="Cancel" IsCancel="True" Padding="14,6"/></WrapPanel>
+  </StackPanel></ScrollViewer>
+</Window>

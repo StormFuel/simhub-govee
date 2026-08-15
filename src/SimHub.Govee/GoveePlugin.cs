@@ -52,7 +52,7 @@ namespace SimHub.Govee
             {
                 Task.Run(async () =>
                 {
-                    try { Status = "Applying startup policy…"; await Controller.ApplyStartupAsync(Settings, _lifetime.Token).ConfigureAwait(false); Status = "Ready"; }
+                    try { Status = "Applying startup policy…"; await ApplyStartupPolicyAsync(_lifetime.Token).ConfigureAwait(false); Status = "Ready"; }
                     catch (Exception ex) { Status = "Startup: " + SafeMessage(ex); SimHub.Logging.Current.Warn("Govee Controller startup failed: " + SafeMessage(ex)); }
                 });
             }
@@ -107,7 +107,22 @@ namespace SimHub.Govee
             Settings.EncryptedApiKey = _protector.Protect(plainText.Trim()); SaveSettings(); Status = "API key saved securely";
         }
         internal void RemoveApiKey() { Settings.EncryptedApiKey = null; Settings.RefreshStateBeforeAction = false; SaveSettings(); Status = "API key removed"; }
+        internal void ResetSettings()
+        {
+            Settings = new PluginSettings();
+            SaveSettings();
+            Status = "Plugin settings reset. Restart SimHub to clear in-memory state and obsolete action registrations.";
+        }
         internal void SaveSettings() { SettingsValidator.Normalize(Settings); ManagedActionPlanner.Reconcile(Settings); SettingsValidator.Normalize(Settings); this.SaveCommonSettings(SettingsKey, Settings); RegisterActions(); }
+
+        private async Task ApplyStartupPolicyAsync(CancellationToken token)
+        {
+            var selected = Settings.Devices.Where(x => x.Selected).ToList();
+            await Controller.CaptureInitialStatesAsync(selected, token).ConfigureAwait(false);
+            var state = AutomationPolicy.StateForStartup(Settings); if (state == null) return;
+            var result = await Dispatcher.ApplyAsync(AutomationPolicy.ResolveStartupTargets(Settings), state, Settings.CloudFallback, token).ConfigureAwait(false);
+            if (!result.Success) throw new InvalidOperationException(result.Message);
+        }
         private string GetApiKey() { return HasApiKey ? _protector.Unprotect(Settings.EncryptedApiKey) : null; }
         internal void SetStatus(string status) { Status = status; }
         internal static string SafeMessage(Exception ex) => (ex?.Message ?? "Unknown error").Replace("\r", " ").Replace("\n", " ");

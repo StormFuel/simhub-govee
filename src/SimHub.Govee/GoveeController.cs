@@ -24,7 +24,17 @@ namespace SimHub.Govee
             foreach (var cloud in discovered)
             {
                 DeviceSettings old;
-                if (saved.TryGetValue(cloud.DeviceId ?? "", out old)) { cloud.Selected = old.Selected; cloud.IpAddress = old.IpAddress; cloud.Transport = old.Transport; }
+                if (saved.TryGetValue(cloud.DeviceId ?? "", out old))
+                {
+                    cloud.Selected = old.Selected; cloud.IpAddress = old.IpAddress; cloud.Transport = old.Transport; cloud.LastKnownPower = old.LastKnownPower;
+                    if (old.SegmentTopology != null && old.SegmentTopology.HasUsableMapping)
+                    {
+                        cloud.SegmentTopology.VerifiedSegmentIndices = old.SegmentTopology.VerifiedSegmentIndices.ToList();
+                        cloud.SegmentTopology.Zones = old.SegmentTopology.Zones;
+                        cloud.SegmentTopology.Source = old.SegmentTopology.Source;
+                    }
+                }
+                SegmentTopologyCatalog.ApplyKnownMapping(cloud);
                 if (!settings.HideLogicalDevices || !cloud.IsLogical) merged.Add(cloud);
             }
             merged.AddRange((settings.Devices ?? new List<DeviceSettings>()).Where(d => string.IsNullOrWhiteSpace(d.DeviceId)));
@@ -64,6 +74,36 @@ namespace SimHub.Govee
         }
         public Task<OperationResult> SetBrightnessAsync(DeviceSettings d, int value, bool fallback, CancellationToken token) => ExecuteAsync(d, fallback, false, () => _lan.SendBrightness(d.IpAddress, value), () => _cloud.SetBrightnessAsync(RequireKey(), d, value, token), null, "brightness", token);
         public Task<OperationResult> SetColorAsync(DeviceSettings d, int r, int g, int b, bool fallback, CancellationToken token) => ExecuteAsync(d, fallback, false, () => _lan.SendColor(d.IpAddress, r, g, b), () => _cloud.SetColorAsync(RequireKey(), d, r, g, b, token), null, "color", token);
+        public Task<OperationResult> SetSegmentColorAsync(DeviceSettings d, IList<int> segments, int r, int g, int b, CancellationToken token)
+        {
+            if (d.Transport == TransportMode.LocalOnly) return Task.FromResult(OperationResult.Fail("Segmented colors require cloud access. Change this device from Local Only and save the API key in Step 1."));
+            return ExecuteCloudOnlyAsync(d, () => _cloud.SetSegmentColorAsync(RequireKey(), d, segments, r, g, b, token), "segmented color", token);
+        }
+        public Task<OperationResult> SetSegmentBrightnessAsync(DeviceSettings d, IList<int> segments, int brightness, CancellationToken token)
+        {
+            if (d.Transport == TransportMode.LocalOnly) return Task.FromResult(OperationResult.Fail("Segmented brightness requires cloud access. Change this device from Local Only and save the API key in Step 1."));
+            return ExecuteCloudOnlyAsync(d, () => _cloud.SetSegmentBrightnessAsync(RequireKey(), d, segments, brightness, token), "segmented brightness", token);
+        }
+
+        private async Task<OperationResult> ExecuteCloudOnlyAsync(DeviceSettings d, Func<Task> command, string label, CancellationToken token)
+        {
+            await _gate.WaitAsync(token).ConfigureAwait(false);
+            try
+            {
+                string rateKey = d.DeviceId ?? d.Sku ?? "device";
+                DateTime last;
+                if (_lastCloudCommand.TryGetValue(rateKey, out last))
+                {
+                    TimeSpan wait = TimeSpan.FromMilliseconds(550) - (DateTime.UtcNow - last);
+                    if (wait > TimeSpan.Zero) await Task.Delay(wait, token).ConfigureAwait(false);
+                }
+                await command().ConfigureAwait(false);
+                _lastCloudCommand[rateKey] = DateTime.UtcNow;
+                return OperationResult.Ok("Cloud " + label + " command accepted. Govee does not expose segmented state for verification.");
+            }
+            catch (Exception ex) { return OperationResult.Fail(Sanitize(ex.Message)); }
+            finally { _gate.Release(); }
+        }
 
         private async Task<OperationResult> ExecuteAsync(DeviceSettings d, bool fallback, bool verify, Action local, Func<Task> cloud, Func<DeviceState, bool> predicate, string label, CancellationToken token)
         {
@@ -131,6 +171,20 @@ namespace SimHub.Govee
             OperationResult result = OperationResult.Ok("No known fields required restoration.");
             if (s.Brightness.HasValue) { result = await SetBrightnessAsync(d, s.Brightness.Value, fallback, token).ConfigureAwait(false); if (!result.Success) return result; }
             if (s.Rgb.HasValue) { int rgb = s.Rgb.Value; result = await SetColorAsync(d, rgb >> 16 & 255, rgb >> 8 & 255, rgb & 255, fallback, token).ConfigureAwait(false); if (!result.Success) return result; }
+            if (s.SegmentColors != null)
+            {
+                foreach (var group in s.SegmentColors.Where(x => x != null && x.SegmentIndices != null && x.SegmentIndices.Count > 0))
+                {
+                    int rgb = SettingsValidator.HexToRgb(group.HexColor);
+                    result = await SetSegmentColorAsync(d, group.SegmentIndices, rgb >> 16 & 255, rgb >> 8 & 255, rgb & 255, token).ConfigureAwait(false);
+                    if (!result.Success) return result;
+                    if (group.Brightness.HasValue && d.SegmentTopology != null && d.SegmentTopology.SupportsSegmentedBrightness)
+                    {
+                        result = await SetSegmentBrightnessAsync(d, group.SegmentIndices, group.Brightness.Value, token).ConfigureAwait(false);
+                        if (!result.Success) return result;
+                    }
+                }
+            }
             // Power is deliberately last: some lights may wake when brightness/color is changed.
             if (s.PowerOn.HasValue) result = await SetPowerAsync(d, s.PowerOn.Value, false, fallback, token).ConfigureAwait(false);
             return result.Success ? OperationResult.Ok("Previous known state restored.", result.UsedCloudFallback) : result;

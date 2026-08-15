@@ -36,6 +36,17 @@ namespace SimHub.Govee
         {
             return targets == null || targets.Count == 0 || !targets.All(d => d.LastKnownPower == true);
         }
+        public static DesiredLightState StateForStartup(PluginSettings settings)
+        {
+            if (settings == null || settings.StartupPolicy == StartupPolicy.LeaveUnchanged) return null;
+            var preset = settings.Presets.FirstOrDefault(x => string.Equals(x.Id, settings.StartupPresetId, StringComparison.OrdinalIgnoreCase));
+            return preset == null ? new DesiredLightState { PowerOn = settings.StartupPowerOn, Source = "SimHub startup" } : StateForPreset(settings, preset.Id, "SimHub startup");
+        }
+        public static IList<DeviceSettings> ResolveStartupTargets(PluginSettings settings)
+        {
+            var preset = settings.Presets.FirstOrDefault(x => string.Equals(x.Id, settings.StartupPresetId, StringComparison.OrdinalIgnoreCase));
+            return ResolveTargets(settings, preset == null ? null : preset.TargetDeviceIds);
+        }
         public static DesiredLightState StateForProfile(PluginSettings settings, GameProfile profile)
         {
             if (profile == null || !profile.Enabled || profile.Behavior == ProfileBehavior.LeaveUnchanged) return null;
@@ -47,7 +58,7 @@ namespace SimHub.Govee
         {
             var p = settings.Presets.FirstOrDefault(x => x.Id == presetId);
             if (p == null) return null;
-            return new DesiredLightState { PowerOn = forcePowerOn || p.TurnOn ? true : (bool?)null, Brightness = p.Brightness, Rgb = SettingsValidator.HexToRgb(p.HexColor), Source = source };
+            return new DesiredLightState { PowerOn = forcePowerOn || p.TurnOn ? true : (bool?)null, Brightness = p.Brightness, Rgb = SettingsValidator.HexToRgb(p.HexColor), DeviceAppearances = p.DeviceAppearances ?? new List<DevicePresetAppearance>(), Source = source };
         }
     }
 
@@ -104,14 +115,14 @@ namespace SimHub.Govee
             var action = actions.FirstOrDefault(a => a != null && string.Equals(a.ActionKey, key, StringComparison.OrdinalIgnoreCase));
             if (action == null)
             {
-                action = new ManualActionDefinition { ActionKey = key };
+                action = new ManualActionDefinition { ActionKey = key, TargetDeviceIds = new List<string>() };
                 actions.Add(action);
             }
             action.DisplayName = label;
             action.Type = type;
             action.PresetId = null;
             action.PresetName = string.Empty;
-            action.TargetDeviceIds = new List<string>();
+            if (action.TargetDeviceIds == null) action.TargetDeviceIds = new List<string>();
             action.IsManaged = true;
         }
 
@@ -171,14 +182,41 @@ namespace SimHub.Govee
             foreach (var d in devices)
             {
                 if (mine != Interlocked.Read(ref _generation)) return OperationResult.Fail("Superseded by a newer lighting command.");
-                if (state.Brightness.HasValue) last = await _controller.SetBrightnessAsync(d, state.Brightness.Value, fallback, token).ConfigureAwait(false);
-                if (last.Success && state.Rgb.HasValue) { int rgb = state.Rgb.Value; last = await _controller.SetColorAsync(d, rgb >> 16 & 255, rgb >> 8 & 255, rgb & 255, fallback, token).ConfigureAwait(false); }
-                if (last.Success && state.PowerOn.HasValue) last = await _controller.SetPowerAsync(d, state.PowerOn.Value, false, fallback, token).ConfigureAwait(false);
+                var deviceState = state.ForDevice(d);
+                if (deviceState.Brightness.HasValue) last = await _controller.SetBrightnessAsync(d, deviceState.Brightness.Value, fallback, token).ConfigureAwait(false);
+                if (last.Success && deviceState.Rgb.HasValue) { int rgb = deviceState.Rgb.Value; last = await _controller.SetColorAsync(d, rgb >> 16 & 255, rgb >> 8 & 255, rgb & 255, fallback, token).ConfigureAwait(false); }
+                if (last.Success && deviceState.SegmentColors != null && deviceState.SegmentColors.Count > 0)
+                {
+                    var allowed = new HashSet<int>((d.SegmentTopology == null ? null : d.SegmentTopology.VerifiedSegmentIndices) ?? new List<int>());
+                    if (allowed.Count == 0) return OperationResult.Fail(d.DisplayName + " has no verified segment mapping. Run or import a compatibility test before using segmented presets.");
+                    var commands = deviceState.SegmentColors
+                        .SelectMany(a => (a.SegmentIndices ?? new List<int>()).Where(allowed.Contains).Select(index => new { Index = index, Hex = SettingsValidator.NormalizeHex(a.HexColor) }))
+                        .GroupBy(x => x.Hex, StringComparer.OrdinalIgnoreCase);
+                    foreach (var command in commands)
+                    {
+                        int rgb = SettingsValidator.HexToRgb(command.Key);
+                        last = await _controller.SetSegmentColorAsync(d, command.Select(x => x.Index).Distinct().OrderBy(x => x).ToList(), rgb >> 16 & 255, rgb >> 8 & 255, rgb & 255, token).ConfigureAwait(false);
+                        if (!last.Success) break;
+                    }
+                    if (last.Success && d.SegmentTopology.SupportsSegmentedBrightness)
+                    {
+                        var brightnessCommands = deviceState.SegmentColors.Where(x => x.Brightness.HasValue)
+                            .SelectMany(a => (a.SegmentIndices ?? new List<int>()).Where(allowed.Contains).Select(index => new { Index = index, Brightness = a.Brightness.Value }))
+                            .GroupBy(x => x.Brightness);
+                        foreach (var command in brightnessCommands)
+                        {
+                            last = await _controller.SetSegmentBrightnessAsync(d, command.Select(x => x.Index).Distinct().OrderBy(x => x).ToList(), command.Key, token).ConfigureAwait(false);
+                            if (!last.Success) break;
+                        }
+                    }
+                }
+                if (last.Success && deviceState.PowerOn.HasValue) last = await _controller.SetPowerAsync(d, deviceState.PowerOn.Value, false, fallback, token).ConfigureAwait(false);
                 if (!last.Success) return last;
                 DeviceState known; if (!_lastKnown.TryGetValue(d.DeviceId ?? d.IpAddress ?? "", out known)) known = new DeviceState();
-                if (state.Brightness.HasValue) known.Brightness = state.Brightness;
-                if (state.Rgb.HasValue) known.Rgb = state.Rgb;
-                if (state.PowerOn.HasValue) known.PowerOn = state.PowerOn;
+                if (deviceState.Brightness.HasValue) known.Brightness = deviceState.Brightness;
+                if (deviceState.Rgb.HasValue) { known.Rgb = deviceState.Rgb; known.SegmentColors.Clear(); }
+                if (deviceState.SegmentColors != null && deviceState.SegmentColors.Count > 0) known.SegmentColors = DesiredLightState.CloneAssignments(deviceState.SegmentColors);
+                if (deviceState.PowerOn.HasValue) known.PowerOn = deviceState.PowerOn;
                 _lastKnown[d.DeviceId ?? d.IpAddress ?? ""] = known;
             }
             return last;
@@ -205,10 +243,17 @@ namespace SimHub.Govee
                 if (!_sessionActive)
                 {
                     _preGame = await _controller.CaptureStatesAsync(settings.Devices.Where(d => d.Selected), token).ConfigureAwait(false);
-                    foreach (var d in settings.Devices.Where(d => d.Selected && d.Transport == TransportMode.LocalOnly))
+                    foreach (var d in settings.Devices.Where(d => d.Selected))
                     {
                         var known = _dispatcher.GetLastKnown(d);
-                        if (known != null) _preGame[d.DeviceId ?? d.IpAddress ?? ""] = known;
+                        if (known == null) continue;
+                        string key = d.DeviceId ?? d.IpAddress ?? "";
+                        DeviceState captured;
+                        if (_preGame.TryGetValue(key, out captured))
+                        {
+                            if (known.SegmentColors != null && known.SegmentColors.Count > 0) captured.SegmentColors = DesiredLightState.CloneAssignments(known.SegmentColors);
+                        }
+                        else _preGame[key] = known;
                     }
                     _sessionActive = true;
                 }
